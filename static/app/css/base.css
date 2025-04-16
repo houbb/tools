@@ -1,0 +1,209 @@
+html {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    SimSun, sans-serif; /* 1 */
+    -ms-text-size-adjust: 100%; /* 2 */
+    -webkit-text-size-adjust: 100%; /* 2 */
+}
+
+/**
+    自定义文字过长处理
+ */
+.my-ellipsis {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    display: inline-block
+}
+
+/**
+    自定义分割线
+ */
+.my-hr {
+    height: 1px;
+    background-color: #eeeeee;
+    margin: 12px auto
+}
+
+/**
+    自定义超链接
+ */
+.my-a {
+    color: black !important;
+}
+.my-a:hover {
+    color: #2a7ae2 !important;
+    text-decoration: none !important;
+}
+
+/**
+    自定义超链接
+ */
+.my-aw {
+    color: white !important;
+}
+.my-aw:hover {
+    color: rgba(255,255,255,0.9) !important;
+    text-decoration: none !important;
+}
+
+
+.label {
+    border-radius: 0;
+    display: inline-block;
+    font-weight: 400;
+    text-shadow: none
+}
+
+.btn-define {
+    color: #fff;
+    background-color: #09f;
+    border-color: #0086e6;
+    border-radius: 3px
+}
+
+.btn-define:hover, .btn-define:focus, .btn-define:active, .btn-define.active, .open .dropdown-toggle.btn-define {
+    color: #fff;
+    background-color: #0089ee;
+    border-color: #357ebd
+}
+
+.btn-define:active, .btn-define.active, .open .dropdown-toggle.btn-define {
+    background-image: none
+}
+
+.btn-define.disabled, .btn-define[disabled], fieldset[disabled] .btn-define, .btn-define.disabled:hover, .btn-define[disabled]:hover, fieldset[disabled] .btn-define:hover, .btn-define.disabled:focus, .btn-define[disabled]:focus, fieldset[disabled] .btn-define:focus, .btn-define.disabled:active, .btn-define[disabled]:active, fieldset[disabled] .btn-define:active, .btn-define.disabled.active, .btn-define[disabled].active, fieldset[disabled] .btn-define.active {
+    background-color: #09f;
+    border-color: #0086e6
+}
+
+.btn-define .badge {
+    color: #09f;
+    background-color: #fff
+}
+
+#scroll-top {
+    background: #74b3fb;
+    color: #fff;
+    bottom: 20px;
+    left: 50px;
+    height: 30px;
+    line-height: 30px;
+    width: 30px;
+    position: fixed;
+    z-index: 9999;
+    display: none;
+}
+
+.syntaxhighlighter.collapsed .toolbar {
+    border: 1px solid #09f !important
+}
+
+svg:not(:root) {
+    overflow: inherit
+}
+
+
+/*font size*/
+.f12 {
+    font-size: 12px;
+    line-height: 20px;
+}
+
+.f14 {
+    font-size: 14px;
+    line-height: 22px;
+}
+
+
+/*.post-list > li {*/
+    /*border-bottom: 1px dashed #888888;*/
+/*}*/
+
+.post-list .post-item-time {
+    height: 24px;
+    display: inline-block;
+}
+
+/*css for rotate-360*/
+.rotate-360 {
+    -webkit-transition:-webkit-transform 1s,opacity 1s,background 1s,width 1s,height 1s,font-size 1s;
+    -webkit-border-radius:5px;
+    -o-transition-property:width,height,-o-transform,background,font-size,opacity;
+    -o-transition-duration:1s,1s,1s,1s,1s,1s;
+    -moz-transition-property:width,height,-o-transform,background,font-size,opacity;
+    -moz-transition-duration:1s,1s,1s,1s,1s,1s;
+    transition-property:width,height,transform,background,font-size,opacity;
+    transition-duration:1s,1s,1s,1s,1s,1s;
+}
+.rotate-360:hover {
+    -moz-transform: rotate(360deg);
+    -webkit-transform: rotate(360deg);
+    -o-transform: rotate(360deg);
+    transform: rotate(360deg);
+    opacity:1;
+    font-size:130%;
+}
+
+.cursor:hover {
+    cursor: pointer;
+}
+
+
+
+/**
+    颜色定义
+**/
+.white {
+    color: white;
+}
+
+.blur {
+    -webkit-filter: blur(3px); /* Chrome, Opera */
+    -moz-filter: blur(3px);
+    -ms-filter: blur(3px);
+    filter: blur(3px);
+}
+.blur-1 {
+    -webkit-filter: blur(1px); /* Chrome, Opera */
+    -moz-filter: blur(1px);
+    -ms-filter: blur(1px);
+    filter: blur(1px);
+}
+.blur-2 {
+    -webkit-filter: blur(2px); /* Chrome, Opera */
+    -moz-filter: blur(2px);
+    -ms-filter: blur(2px);
+    filter: blur(2px);
+}
+
+
+.site-footer {
+    margin-top: 25px;
+}
+
+
+#travel-chinese-map {
+    width: 100%;
+    height: 600px;
+    background-color: #eeeeee;
+}
+
+
+
+/**
+line number
+ */
+.line-warp {
+    position: absolute;
+    top: 8px;
+    left: 0px;
+    width: 27px;
+    text-align: right;
+    color: #cccccc;
+}
+pre.highlight {
+    position: relative;
+}
+pre.highlight.padding-left {
+    padding-left: 35px;
+}
