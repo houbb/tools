@@ -1,6 +1,170 @@
 
+
 <head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>工具集合 - lmxxf</title>
 	<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.3.3/semantic.min.css">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+	<style>
+		body {
+			background: linear-gradient(135deg, #0f2027 0%, #2c5364 100%);
+			color: #fff;
+			font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+		}
+		.main-content-container {
+			min-height: 650px;
+			padding-bottom: 40px;
+		}
+		.title {
+			margin-top: 20px;
+			margin-bottom: 30px;
+			text-align: center;
+			font-size: 2.2rem;
+			font-weight: 600;
+			letter-spacing: 2px;
+			color: #00e6e6;
+			text-shadow: 0 2px 8px #222;
+		}
+		.title a {
+			color: #fff;
+			font-size: 1.2rem;
+			text-decoration: underline;
+		}
+		.search-bar {
+			display: flex;
+			justify-content: center;
+			margin-bottom: 30px;
+		}
+		.search-bar input {
+			width: 350px;
+			padding: 12px 18px;
+			border-radius: 30px;
+			border: none;
+			font-size: 1.1rem;
+			margin-right: 10px;
+			background: #222;
+			color: #fff;
+			box-shadow: 0 2px 8px #222;
+		}
+		.search-bar select {
+			padding: 10px 16px;
+			border-radius: 20px;
+			border: none;
+			font-size: 1rem;
+			background: #222;
+			color: #fff;
+			margin-right: 10px;
+		}
+		.card-flow {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 28px;
+			justify-content: center;
+		}
+		.tool-card {
+			background: linear-gradient(135deg, #232526 0%, #414345 100%);
+			border-radius: 18px;
+			box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+			width: 320px;
+			min-height: 180px;
+			padding: 28px 22px 22px 22px;
+			display: flex;
+			flex-direction: column;
+			justify-content: space-between;
+			transition: transform 0.2s, box-shadow 0.2s;
+			position: relative;
+		}
+		.tool-card:hover {
+			transform: translateY(-8px) scale(1.04);
+			box-shadow: 0 8px 32px #00e6e6a0;
+		}
+		.tool-card .category {
+			position: absolute;
+			top: 10px;
+			left: 14px;
+			background: linear-gradient(90deg, #ffb347 0%, #00e6e6 100%);
+			color: #222;
+			font-size: 0.68rem;
+			padding: 1px 8px;
+			border-radius: 8px;
+			font-weight: 500;
+			letter-spacing: 0.5px;
+			z-index: 2;
+			box-shadow: 0 1px 6px #00e6e6a0;
+			opacity: 0.92;
+		}
+		.tool-card .title {
+			font-size: 1.3rem;
+			font-weight: 600;
+			color: #fff;
+			margin-bottom: 8px;
+		}
+		.tool-card .subtitle {
+			font-size: 1rem;
+			color: #00e6e6;
+			margin-bottom: 10px;
+		}
+		.tool-card .desc {
+			font-size: 0.98rem;
+			color: #e0e0e0;
+			margin-bottom: 18px;
+		}
+		.tool-card .goto {
+			align-self: flex-end;
+			background: #00e6e6;
+			color: #222;
+			border-radius: 8px;
+			padding: 7px 18px;
+			font-weight: 600;
+			text-decoration: none;
+			transition: background 0.2s;
+		}
+		.tool-card .goto:hover {
+			background: #fff;
+			color: #00e6e6;
+		}
+		.footer {
+			margin-top: 60px;
+			text-align: center;
+			color: #fff;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			gap: 18px;
+		}
+		.footer-text {
+			text-align: center;
+			font-size: 1.18rem;
+			margin-bottom: 10px;
+		}
+		.footer-img {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: center;
+			gap: 32px;
+		}
+		.footer-img img:first-child {
+			width: 220px;
+			max-width: 260px;
+			min-width: 120px;
+			border-radius: 12px;
+			box-shadow: 0 2px 16px #222;
+		}
+		.footer-img img:last-child {
+			width: 180px;
+			max-width: 220px;
+			min-width: 100px;
+			border-radius: 12px;
+			box-shadow: 0 2px 16px #222;
+		}
+		@media (max-width: 900px) {
+			.card-flow { gap: 18px; }
+			.tool-card { width: 98vw; min-width: 0; }
+		}
+	</style>
 </head>
 
 <style>
@@ -30,49 +194,301 @@
 
 
 	
+
 <!-- Main Content -->
 <div class="main-content-container container">
-	
 	<div class="title">
-		<a href="https://houbb.github.io">返回主站</a>
+		<a href="https://houbb.github.io">老马啸西风</a>
 	</div>
-
-	<div class="ui four column stackable padded grid">
-			<a class="column" style="background-color:#F09C5A; color: #FFFFFF;" href="./tools/html2markdown"><span>HTML 转 Markdown</span></a>
-			<a class="green column" href="./wechat"><span>微信聊天</span></a>
-			<a class="red column" href="./calc"><span>房贷计算器</span></a>
-			<a class="green column" href="./wx"><span>微信编辑器</span></a>
-			<a class="violet column" href="./idrag"><span>低代码平台</span></a>
-			<a class="column" style="background-color:#FCA106; color: #FFFFFF;" href="./tools/tinyimg"><span>图片压缩</span></a>
-			<a class="column" style="background-color:#96bb8f; color: #FFFFFF;" href="./tools/image-text.html"><span>图文合成</span></a>
-
-			<a class="column" style="background-color:#EA8958; color: #FFFFFF;" href="./tools/cron"><span>cron 表达式</span></a>
-			<a class="orange column" href="./jsonf"><span>JSON 格式化</span></a>
-			<a class="yellow column" href="./jsf"><span>JS/CSS/HTML 压缩</span></a>
-			<a class="pink column" href="./jsf/b"><span>JS/CSS/HTML 美化</span></a>
-			<a class="black column" href="./jsf/c"><span>JS 混淆</span></a>
-			<a class="orange column" href="./idrag"><span>拖拽例子</span></a>
-			<a class="column" style="background-color:#F09C5A; color: #FFFFFF;" href="./tools/zerowidth"><span>零宽字符</span></a>
-			<a class="column" style="background-color:#ED556A; color: #FFFFFF;" href="./tools/linuxtime"><span>时间戳转换</span></a>
-
-			<a class="column" style="background-color:#eb7faf; color: #FFFFFF;" href="./tools/zgs"><span>中国传统色</span></a>
-			<a class="column" style="background-color:#fedfe1; color: #FFFFFF;" href="./tools/jps"><span>日本传统色</span></a>
-			
-			<a class="grey column" href="./tools/nlp.html"><span>NLP</span></a>
-			<a class="red column" href="./tools/ImageToAscii.html"><span>ImageToAscii</span></a>
-			<a class="green column" href="./tools/color.html"><span>Color</span></a>
-			<a class="teal column" href="./tools/qrcode.html"><span>Qrcode</span></a>
-			<a class="blue column" href="./tools/tts.html"><span>TTS</span></a>
-			<a class="violet column" href="./tools/wordCloud.html"><span>WordCloud</span></a>
-
-			<a class="pink column" href="./tools/editor.html"><span>富文本框</span></a>
-			
-			<a class="black column" href="./tools/function-draw"><span>函数绘制</span></a>
-
-			<a class="violet column" href="./tools/profit_calc.html"><span>利润计算</span></a>
-			<a class="purple column" href="./tools/html2markdownToc.html"><span>HTML&markdown转换</span></a>
-			<a class="blue column" href="./tools/html-preview.html"><span>HTML预览及导出</span></a>
-
+	<div class="search-bar">
+		<input type="text" id="searchInput" placeholder="🔍 搜索功能/分类/描述 (中英文)...">
+		<select id="categorySelect">
+			<option value="">全部分类</option>
+			<option value="format">格式转换</option>
+			<option value="image">图片处理</option>
+			<option value="color">色彩相关</option>
+			<option value="editor">编辑器</option>
+			<option value="calc">计算工具</option>
+			<option value="code">代码相关</option>
+			<option value="other">其他</option>
+		</select>
 	</div>
-
+	<div class="card-flow" id="cardFlow">
+		<!-- 卡片内容由 JS 渲染 -->
+	</div>
+   <div class="footer">
+	  <div class="footer-text">技术改变世界，思考引领未来</div>
+	  <div class="footer-img">
+		<img src="lmxxf_logo.png" alt="lmxxf logo">
+		<img src="lmxxf_reword.png" alt="lmxxf reward">
+	  </div>
+   </div>
 </div>
+
+<script>
+// 工具卡片数据
+const tools = [
+	{
+		category: 'format',
+		title: 'HTML 转 Markdown',
+		subtitle: 'HTML to Markdown',
+		desc: '将 HTML 内容快速转换为 Markdown 格式，支持批量处理。',
+		url: './tools/html2markdown',
+		icon: 'fa-code',
+	},
+	{
+		category: 'editor',
+		title: '微信聊天',
+		subtitle: 'WeChat Chat',
+		desc: '模拟微信聊天界面，支持消息编辑与导出。',
+		url: './wechat',
+		icon: 'fa-comments',
+	},
+	{
+		category: 'calc',
+		title: '房贷计算器',
+		subtitle: 'Mortgage Calculator',
+		desc: '便捷计算房贷月供、总利息等，支持多种还款方式。',
+		url: './calc',
+		icon: 'fa-calculator',
+	},
+	{
+		category: 'editor',
+		title: '微信编辑器',
+		subtitle: 'WeChat Editor',
+		desc: '微信风格富文本编辑器，支持多种排版。',
+		url: './wx',
+		icon: 'fa-edit',
+	},
+	{
+		category: 'code',
+		title: '低代码平台',
+		subtitle: 'Low-code Platform',
+		desc: '拖拽式低代码开发平台，快速搭建应用。',
+		url: './idrag',
+		icon: 'fa-cubes',
+	},
+	{
+		category: 'image',
+		title: '图片压缩',
+		subtitle: 'Image Compressor',
+		desc: '高效压缩图片体积，支持多种格式。',
+		url: './tools/tinyimg',
+		icon: 'fa-compress',
+	},
+	{
+		category: 'image',
+		title: '图文合成',
+		subtitle: 'Image & Text Merge',
+		desc: '将图片与文字智能合成，适用于海报等场景。',
+		url: './tools/image-text.html',
+		icon: 'fa-image',
+	},
+	{
+		category: 'code',
+		title: 'cron 表达式',
+		subtitle: 'Cron Expression',
+		desc: '在线生成与解析 cron 定时表达式。',
+		url: './tools/cron',
+		icon: 'fa-clock',
+	},
+	{
+		category: 'format',
+		title: 'JSON 格式化',
+		subtitle: 'JSON Formatter',
+		desc: '美化、校验 JSON 数据，支持高亮显示。',
+		url: './jsonf',
+		icon: 'fa-align-left',
+	},
+	{
+		category: 'format',
+		title: 'JS/CSS/HTML 压缩',
+		subtitle: 'JS/CSS/HTML Minify',
+		desc: '前端代码压缩，减小体积提升加载速度。',
+		url: './jsf',
+		icon: 'fa-file-code',
+	},
+	{
+		category: 'format',
+		title: 'JS/CSS/HTML 美化',
+		subtitle: 'JS/CSS/HTML Beautify',
+		desc: '格式化美化前端代码，提升可读性。',
+		url: './jsf/b',
+		icon: 'fa-magic',
+	},
+	{
+		category: 'code',
+		title: 'JS 混淆',
+		subtitle: 'JS Obfuscator',
+		desc: '对 JS 代码进行混淆处理，增强安全性。',
+		url: './jsf/c',
+		icon: 'fa-user-secret',
+	},
+	{
+		category: 'code',
+		title: '拖拽例子',
+		subtitle: 'Drag Demo',
+		desc: '拖拽交互示例，学习拖拽实现原理。',
+		url: './idrag',
+		icon: 'fa-arrows-alt',
+	},
+	{
+		category: 'code',
+		title: '零宽字符',
+		subtitle: 'Zero-width Char',
+		desc: '生成零宽字符，适用于隐写等特殊场景。',
+		url: './tools/zerowidth',
+		icon: 'fa-font',
+	},
+	{
+		category: 'calc',
+		title: '时间戳转换',
+		subtitle: 'Timestamp Converter',
+		desc: '时间戳与日期互转，支持多种格式。',
+		url: './tools/linuxtime',
+		icon: 'fa-clock-rotate-left',
+	},
+	{
+		category: 'color',
+		title: '中国传统色',
+		subtitle: 'Chinese Colors',
+		desc: '中国传统色彩展示与取色，支持配色方案。',
+		url: './tools/zgs',
+		icon: 'fa-palette',
+	},
+	{
+		category: 'color',
+		title: '日本传统色',
+		subtitle: 'Japanese Colors',
+		desc: '日本传统色彩展示与取色，支持配色方案。',
+		url: './tools/jps',
+		icon: 'fa-brush',
+	},
+	{
+		category: 'other',
+		title: 'NLP',
+		subtitle: 'Natural Language Processing',
+		desc: '自然语言处理相关工具，支持分词、情感分析等。',
+		url: './tools/nlp.html',
+		icon: 'fa-language',
+	},
+	{
+		category: 'image',
+		title: 'ImageToAscii',
+		subtitle: 'Image to ASCII',
+		desc: '将图片转换为 ASCII 艺术字，支持多种风格。',
+		url: './tools/ImageToAscii.html',
+		icon: 'fa-file-image',
+	},
+	{
+		category: 'color',
+		title: 'Color',
+		subtitle: 'Color Tool',
+		desc: '色彩相关工具，支持取色、转换等功能。',
+		url: './tools/color.html',
+		icon: 'fa-eye-dropper',
+	},
+	{
+		category: 'image',
+		title: 'Qrcode',
+		subtitle: 'QR Code Generator',
+		desc: '生成二维码，支持多种样式与内容。',
+		url: './tools/qrcode.html',
+		icon: 'fa-qrcode',
+	},
+	{
+		category: 'other',
+		title: 'TTS',
+		subtitle: 'Text to Speech',
+		desc: '文字转语音工具，支持多语言合成。',
+		url: './tools/tts.html',
+		icon: 'fa-volume-up',
+	},
+	{
+		category: 'other',
+		title: 'WordCloud',
+		subtitle: 'Word Cloud',
+		desc: '生成词云图，支持自定义样式与数据。',
+		url: './tools/wordCloud.html',
+		icon: 'fa-cloud',
+	},
+	{
+		category: 'editor',
+		title: '富文本框',
+		subtitle: 'Rich Text Editor',
+		desc: '在线富文本编辑器，支持多种格式与导出。',
+		url: './tools/editor.html',
+		icon: 'fa-keyboard',
+	},
+	{
+		category: 'code',
+		title: '函数绘制',
+		subtitle: 'Function Draw',
+		desc: '在线绘制数学函数图像，支持多种样式。',
+		url: './tools/function-draw',
+		icon: 'fa-chart-line',
+	},
+	{
+		category: 'calc',
+		title: '利润计算',
+		subtitle: 'Profit Calculator',
+		desc: '快速计算利润、成本、收益等财务数据。',
+		url: './tools/profit_calc.html',
+		icon: 'fa-yen-sign',
+	},
+	{
+		category: 'format',
+		title: 'HTML&markdown转换',
+		subtitle: 'HTML & Markdown Convert',
+		desc: 'HTML 与 Markdown 相互转换，支持目录生成。',
+		url: './tools/html2markdownToc.html',
+		icon: 'fa-exchange-alt',
+	},
+	{
+		category: 'format',
+		title: 'HTML预览及导出',
+		subtitle: 'HTML Preview & Export',
+		desc: '在线预览 HTML 并导出为文件，支持多种格式。',
+		url: './tools/html-preview.html',
+		icon: 'fa-file-export',
+	},
+];
+
+function renderCards(filterText = '', filterCategory = '') {
+	const flow = document.getElementById('cardFlow');
+	flow.innerHTML = '';
+	const keyword = filterText.trim().toLowerCase();
+	tools.filter(tool => {
+		const matchCategory = !filterCategory || tool.category === filterCategory;
+		const matchKeyword = !keyword || (
+			tool.title.toLowerCase().includes(keyword) ||
+			tool.subtitle.toLowerCase().includes(keyword) ||
+			tool.desc.toLowerCase().includes(keyword) ||
+			tool.category.toLowerCase().includes(keyword)
+		);
+		return matchCategory && matchKeyword;
+	}).forEach(tool => {
+		const card = document.createElement('div');
+		card.className = 'tool-card';
+		card.innerHTML = `
+			<div class="category">${tool.category}</div>
+			<div class="title" style="margin-top:10px;"><i class="fa ${tool.icon}" style="margin-right:8px;color:#00e6e6;"></i>${tool.title}</div>
+			<div class="subtitle">${tool.subtitle}</div>
+			<div class="desc">${tool.desc}</div>
+			<a class="goto" href="${tool.url}" target="_blank">进入</a>
+		`;
+		flow.appendChild(card);
+	});
+}
+
+document.getElementById('searchInput').addEventListener('input', function() {
+	renderCards(this.value, document.getElementById('categorySelect').value);
+});
+document.getElementById('categorySelect').addEventListener('change', function() {
+	renderCards(document.getElementById('searchInput').value, this.value);
+});
+
+window.onload = function() {
+	renderCards();
+};
+</script>
