@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>退休计算器 + 养老金明细可视化</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+* { box-sizing: border-box; }
+body { margin:0; padding:0; font-family:'Roboto',sans-serif; background: linear-gradient(-45deg,#6e7bff,#ff6e7b,#ff9a6e,#6effb1); background-size:400% 400%; animation: gradientBG 15s ease infinite; display:flex; justify-content:center; align-items:flex-start; padding-top:20px; }
+@keyframes gradientBG { 0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:0% 50%;} }
+.container { background: rgba(0,0,0,0.65); padding: 30px; border-radius: 15px; width: 100%; max-width: 950px; color:#fff; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
+h1 { text-align:center; margin-bottom:25px; font-size:28px; }
+label { display:block; margin:10px 0 5px; position:relative; }
+input, select { width:100%; padding:10px; margin-bottom:10px; border-radius:5px; border:none; font-size:16px; }
+button { width:100%; padding:12px; font-size:18px; border:none; border-radius:6px; background: linear-gradient(90deg,#ff6e7b,#6e7bff); cursor:pointer; transition:0.3s; }
+button:hover { transform: scale(1.05); }
+.result { margin-top:20px; display:none; background: rgba(255,255,255,0.95); color:#000; padding:15px; border-radius:10px; animation:fadeIn 0.5s ease; }
+@keyframes fadeIn { from{opacity:0;} to{opacity:1}; }
+.summary { margin-bottom:15px; padding:15px; background:#f0f0f0; color:#000; border-radius:10px; }
+.summary p { margin:5px 0; display:flex; align-items:center; }
+.summary i { margin-left:5px; cursor:pointer; color:#007bff; }
+.detail { margin-top:10px; padding:10px; background:#e9e9e9; color:#000; border-radius:8px; font-size:14px; max-height:200px; overflow:auto; display:none; }
+canvas { margin-top:20px; background:#fff; border-radius:10px; padding:10px; }
+.pension-table { width:100%; border-collapse: collapse; margin-top:10px; }
+.pension-table th, .pension-table td { border:1px solid #ccc; padding:5px; text-align:center; font-size:14px; }
+.input-info { position:absolute; left:-25px; top:50%; transform:translateY(-50%); width:20px; height:20px; border-radius:50%; background:#007bff; color:#fff; text-align:center; line-height:20px; font-weight:bold; cursor:pointer; }
+.tooltip { position:absolute; background:#000; color:#fff; padding:5px 8px; border-radius:5px; font-size:12px; display:none; z-index:10; white-space: nowrap; }
+.footer { text-align:center; margin-top:20px; }
+.footer a { color:#fff; text-decoration:none; font-size:14px; }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>退休计算器 + 养老金明细可视化</h1>
+
+    <label>出生年份：
+        <span class="input-info" data-tip="出生年份决定法定退休年龄及退休年份">i</span>
+    </label>
+    <input type="number" id="birthYear" placeholder="例如：1985" required>
+
+    <label>性别：
+        <span class="input-info" data-tip="性别影响退休年龄，男性60岁，女性50/55岁起">i</span>
+    </label>
+    <select id="gender">
+        <option value="male">男</option>
+        <option value="female">女</option>
+    </select>
+
+    <label>人员类型：
+        <span class="input-info" data-tip="干部或工人，影响退休年龄和过渡性养老金">i</span>
+    </label>
+    <select id="role">
+        <option value="worker">工人</option>
+        <option value="cadre">干部</option>
+    </select>
+
+    <label>缴费年限：
+        <span class="input-info" data-tip="缴费年限越长，基础养老金越高">i</span>
+    </label>
+    <input type="number" id="payYears" placeholder="例如：20" required>
+
+    <label>缴费档次（元/月）：
+        <span class="input-info" data-tip="缴费档次影响个人账户养老金金额">i</span>
+    </label>
+    <input type="number" id="payLevel" placeholder="例如：2000" required>
+
+    <label>当地平均工资（元/月）：
+        <span class="input-info" data-tip="基础养老金按平均工资和缴费年限计算">i</span>
+    </label>
+    <input type="number" id="avgSalary" placeholder="例如：5000" required>
+
+    <button onclick="calculate()">计算</button>
+
+    <div class="result" id="result">
+        <!-- 汇总 -->
+        <div class="summary">
+            <p>法定退休年龄：<span id="retirementAge"></span>岁</p>
+            <p>退休年份：<span id="retirementTime"></span></p>
+            <p>延迟月数：<span id="delayMonths"></span>个月</p>
+            <p>总缴费年限：<span id="totalYears"></span>年</p>
+            <p>总缴费金额：<span id="totalAmount"></span>元</p>
+            <p>预计每月养老金：<span id="monthlyPension"></span>元 
+                <i onclick="toggleDetail()" style="cursor:pointer;" title="点击查看计算明细">i</i>
+            </p>
+            <p>明细总额：基础：<span id="totalBase"></span> 元，个人账户：<span id="totalPersonal"></span> 元，过渡性：<span id="totalTransitional"></span> 元</p>
+        </div>
+
+        <!-- 每项计算过程 -->
+        <div class="detail" id="calcDetail"></div>
+
+        <!-- 可视化图 -->
+        <canvas id="pensionChart" width="900" height="400"></canvas>
+
+        <!-- 每年明细表格 -->
+        <table class="pension-table" id="pensionTable">
+            <thead>
+                <tr>
+                    <th>年份</th>
+                    <th>基础养老金</th>
+                    <th>个人账户养老金</th>
+                    <th>过渡性养老金</th>
+                    <th>总养老金</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div class="footer">
+        返回首页：<a href="https://houbb.github.io/tools/">https://houbb.github.io/tools/</a>
+    </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+function showTooltip(evt){
+    const tip = evt.target.dataset.tip;
+    const tooltip = document.getElementById('tooltip');
+    tooltip.innerText = tip;
+    tooltip.style.display='block';
+    tooltip.style.left = evt.pageX + 10 + 'px';
+    tooltip.style.top = evt.pageY + 10 + 'px';
+}
+function hideTooltip(){
+    document.getElementById('tooltip').style.display='none';
+}
+document.querySelectorAll('.input-info').forEach(el=>{
+    el.addEventListener('mouseover', showTooltip);
+    el.addEventListener('mouseout', hideTooltip);
+});
+
+function toggleDetail(){
+    const d = document.getElementById('calcDetail');
+    d.style.display = d.style.display==='block' ? 'none' : 'block';
+}
+
+function calculate(){
+    const birthYear = parseInt(document.getElementById('birthYear').value);
+    const gender = document.getElementById('gender').value;
+    const role = document.getElementById('role').value;
+    const payYears = parseInt(document.getElementById('payYears').value);
+    const payLevel = parseFloat(document.getElementById('payLevel').value);
+    const avgSalary = parseFloat(document.getElementById('avgSalary').value);
+
+    if([birthYear,payYears,payLevel,avgSalary].some(v=>isNaN(v)||v<=0)){
+        alert('请输入有效数字');
+        return;
+    }
+
+    // 退休年龄
+    let retirementAge=60, delayMonths=0, formulaRetirement="";
+    if(gender==='male'){
+        delayMonths = Math.floor((2025 - birthYear)/4);
+        retirementAge = 60 + delayMonths;
+        formulaRetirement = `男性：60岁基础 + 延迟月数 = 60 + ${delayMonths} = ${retirementAge}岁`;
+    } else {
+        if(role==='worker'){
+            delayMonths = Math.floor((2025 - birthYear)/2);
+            retirementAge = 50 + delayMonths;
+            formulaRetirement = `女性工人：50岁基础 + 延迟月数 = 50 + ${delayMonths} = ${retirementAge}岁`;
+        } else {
+            delayMonths = Math.floor((2025 - birthYear)/4);
+            retirementAge = 55 + delayMonths;
+            formulaRetirement = `女性干部：55岁基础 + 延迟月数 = 55 + ${delayMonths} = ${retirementAge}岁`;
+        }
+    }
+    const retirementYear = birthYear + retirementAge;
+
+    // 总缴费金额
+    const totalMonths = payYears*12;
+    const totalAmount = payLevel * totalMonths;
+
+    // 个人账户养老金
+    const personalAccountTotal = totalAmount*0.08; // 个人账户占比8%
+    const personalPension = personalAccountTotal/139; // 计发月数139
+
+    // 基础养老金
+    const basePension = payYears * avgSalary * 0.01; // 简化系数1%/年
+
+    // 过渡性养老金
+    const transitionalPension = totalAmount*0.05/139;
+
+    const monthlyPension = (personalPension + basePension + transitionalPension).toFixed(2);
+
+    // 每年明细
+    const tableBody = document.querySelector('#pensionTable tbody');
+    tableBody.innerHTML='';
+    const years = [];
+    const totalPensions = [];
+    let detailHtml = "<strong>每年养老金计算示例：</strong><br>";
+
+    for(let i=0;i<payYears;i++){
+        const year = birthYear + i + 1;
+        const base = avgSalary*0.01*(i+1);
+        const personal = payLevel*0.08*(i+1)/139;
+        const transitional = totalAmount*0.05/139*(i+1)/payYears;
+        const total = base+personal+transitional;
+
+        years.push(year);
+        totalPensions.push(total.toFixed(2));
+
+        detailHtml += `第${i+1}年(${year})：基础=${base.toFixed(2)}, 个人账户=${personal.toFixed(2)}, 过渡性=${transitional.toFixed(2)}, 总=${total.toFixed(2)}<br>`;
+
+        const row = document.createElement('tr');
+        row.innerHTML = `<td>${year}</td><td>${base.toFixed(2)}</td><td>${personal.toFixed(2)}</td><td>${transitional.toFixed(2)}</td><td>${total.toFixed(2)}</td>`;
+        tableBody.appendChild(row);
+    }
+
+    document.getElementById('retirementAge').textContent = retirementAge;
+    document.getElementById('retirementTime').textContent = retirementYear + '年';
+    document.getElementById('delayMonths').textContent = delayMonths;
+    document.getElementById('totalYears').textContent = payYears;
+    document.getElementById('totalAmount').textContent = totalAmount.toFixed(2);
+    document.getElementById('monthlyPension').textContent = monthlyPension;
+    document.getElementById('totalBase').textContent = basePension.toFixed(2);
+    document.getElementById('totalPersonal').textContent = personalPension.toFixed(2);
+    document.getElementById('totalTransitional').textContent = transitionalPension.toFixed(2);
+    document.getElementById('calcDetail').innerHTML = `<strong>退休年龄计算过程：</strong><br>${formulaRetirement}<br><br>${detailHtml}`;
+
+    // 绘制图表
+    const ctx = document.getElementById('pensionChart').getContext('2d');
+    if(window.pensionChartInstance) window.pensionChartInstance.destroy();
+    window.pensionChartInstance = new Chart(ctx,{
+        type:'line',
+        data:{
+            labels:years,
+            datasets:[{
+                label:'每年累计养老金(元/月)',
+                data:totalPensions,
+                borderColor:'#ff6e7b',
+                backgroundColor:'rgba(255,110,123,0.2)',
+                fill:true,
+                tension:0.3,
+                pointRadius:4
+            }]
+        },
+        options:{ responsive:true, plugins:{ legend:{display:true} }, scales:{ y:{ beginAtZero:true } } }
+    });
+
+    document.getElementById('result').style.display='block';
+}
+</script>
+</body>
+</html>
