@@ -138,11 +138,9 @@
   <div class="footer-bar">技术改变世界，思考引领未来 | Powered by lmxxf</div>
 
   <script>
-
-    // Markdown 解析为树结构
     function parseMarkdown(md) {
       const lines = md.split(/\r?\n/);
-      const root = { name: '思维导图', children: [] };
+      const root = { children: [] }; // 去掉默认根节点
       const stack = [root];
       lines.forEach(line => {
         const match = line.match(/^(#+)\s+(.*)$/);
@@ -155,10 +153,9 @@
           stack.push(node);
         }
       });
-      return root;
+      return root.children.length === 1 ? root.children[0] : { name: '', children: root.children };
     }
 
-    // 渲染思维导图
     function renderMindmap() {
       const md = document.getElementById('markdownInput').value;
       const data = parseMarkdown(md);
@@ -166,6 +163,7 @@
       container.innerHTML = '';
       const width = container.offsetWidth || 800;
       const height = container.offsetHeight || 600;
+
       const svg = d3.select(container)
         .append('svg')
         .attr('width', width)
@@ -175,43 +173,89 @@
       const root = d3.hierarchy(data);
       treeLayout(root);
 
-      // 只渲染非根节点的节点（无连线）
-      const nodes = root.descendants().filter(d => d.depth > 0);
       const colorArr = ['#00e6e6','#ffb347','#ff6f91','#6a89cc','#f8a5c2','#63cdda','#f7f1e3','#f3a683','#778beb'];
-      svg.selectAll('g.node')
+
+      // 渐变色定义
+      const defs = svg.append("defs");
+      const gradient = defs.append("linearGradient")
+        .attr("id", "linkGradient")
+        .attr("x1", "0%")
+        .attr("y1", "0%")
+        .attr("x2", "100%")
+        .attr("y2", "0%");
+      gradient.append("stop").attr("offset", "0%").attr("stop-color", "#00e6e6");
+      gradient.append("stop").attr("offset", "100%").attr("stop-color", "#ff6f91");
+
+      // 绘制连线
+      const links = svg.selectAll('path.link')
+        .data(root.links())
+        .join('path')
+        .attr('class', 'link')
+        .attr('d', d3.linkHorizontal()
+          .x(d => d.y + 80)
+          .y(d => d.x + 20)
+        )
+        .attr('fill', 'none')
+        .attr('stroke', 'url(#linkGradient)')
+        .attr('stroke-width', 2);
+
+      // 绘制节点
+      const nodes = root.descendants();
+      const nodeGroups = svg.selectAll('g.node')
         .data(nodes)
         .join('g')
         .attr('class', 'node')
-        .attr('transform', d => `translate(${d.y + 80},${d.x + 20})`)
-        .each(function(d,i){
-          d3.select(this)
-            .append('rect')
-            .attr('x', -55)
-            .attr('y', -22)
-            .attr('width', 110)
-            .attr('height', 36)
-            .attr('rx', 10)
-            .attr('fill', colorArr[d.depth % colorArr.length]);
-          d3.select(this)
-            .append('text')
-            .attr('x', 0)
-            .attr('y', 0)
-            .attr('text-anchor', 'middle')
-            .attr('alignment-baseline', 'middle')
-            .text(d.data.name)
-            .attr('font-size', '1.05rem')
-            .attr('fill', '#222')
-            .attr('font-weight', 'bold');
-        });
+        .attr('transform', d => `translate(${d.y + 80},${d.x + 20})`);
+
+      nodeGroups.each(function(d){
+        const g = d3.select(this);
+        g.append('rect')
+          .attr('x', -55)
+          .attr('y', -22)
+          .attr('width', 110)
+          .attr('height', 36)
+          .attr('rx', 10)
+          .attr('fill', colorArr[d.depth % colorArr.length])
+          .attr('cursor', 'pointer');
+
+        g.append('text')
+          .attr('x', 0)
+          .attr('y', 0)
+          .attr('text-anchor', 'middle')
+          .attr('alignment-baseline', 'middle')
+          .text(d.data.name)
+          .attr('font-size', '1.05rem')
+          .attr('fill', '#222')
+          .attr('font-weight', 'bold');
+      });
+
+      // 鼠标悬浮高亮父子节点和连线
+      nodeGroups.on('mouseover', function(event,d){
+        d3.select(this).select('rect')
+          .attr('stroke', '#fff')
+          .attr('stroke-width', 3);
+
+        // 高亮连线
+        links.filter(l => l.source === d || l.target === d)
+          .attr('stroke-width', 4)
+          .attr('stroke', '#fff');
+      }).on('mouseout', function(event,d){
+        d3.select(this).select('rect')
+          .attr('stroke', null);
+
+        links.filter(l => l.source === d || l.target === d)
+          .attr('stroke-width', 2)
+          .attr('stroke', 'url(#linkGradient)');
+      });
     }
 
     document.getElementById('markdownInput').addEventListener('input', renderMindmap);
+
     window.addEventListener('DOMContentLoaded', function() {
       document.getElementById('markdownInput').value = '# 项目规划\n## 需求分析\n### 用户调研\n### 功能列表\n## 设计\n### UI设计\n### 架构设计\n## 开发\n### 前端\n### 后端\n## 测试\n### 单元测试\n### 集成测试\n## 部署\n';
       renderMindmap();
     });
 
-    // 导入 Markdown 文件
     document.getElementById('importMd').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -223,7 +267,6 @@
       reader.readAsText(file);
     });
 
-    // 导出 PNG
     document.getElementById('exportPng').onclick = function() {
       const svg = document.querySelector('#mindmapContainer svg');
       if (!svg) return;
@@ -243,7 +286,7 @@
         a.click();
       };
     };
-    // 导出 SVG
+
     document.getElementById('exportSvg').onclick = function() {
       const svg = document.querySelector('#mindmapContainer svg');
       if (!svg) return;
