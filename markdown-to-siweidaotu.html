@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markdown 思维导图生成器</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/semantic-ui@2.4.2/dist/semantic.min.css">
+  <style>
+    body {
+      background: linear-gradient(135deg, #232526 0%, #414345 100%);
+      color: #fff;
+      font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+      min-height: 100vh;
+    }
+    .container-main {
+      display: flex;
+      flex-direction: row;
+      height: 90vh;
+      margin: 32px auto 0 auto;
+      max-width: 1400px;
+      box-shadow: 0 8px 32px #00e6e6a0;
+      border-radius: 18px;
+      background: rgba(30,40,60,0.92);
+      overflow: hidden;
+    }
+    .left-panel {
+      flex: 1.1;
+      padding: 32px 24px 24px 32px;
+      background: linear-gradient(135deg, #0f2027 0%, #2c5364 100%);
+      display: flex;
+      flex-direction: column;
+      border-right: 2px solid #00e6e6;
+    }
+    .right-panel {
+      flex: 2;
+      padding: 32px 32px 24px 24px;
+      background: linear-gradient(135deg, #232526 0%, #414345 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      position: relative;
+    }
+    .header-bar {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 0 0 0;
+      margin-bottom: 8px;
+    }
+    .header-bar .ui.button {
+      margin-right: 12px;
+    }
+    .title-main {
+      font-size: 2.1rem;
+      font-weight: 700;
+      color: #00e6e6;
+      letter-spacing: 2px;
+      text-shadow: 0 2px 8px #222;
+      margin-bottom: 18px;
+    }
+    .markdown-input {
+      width: 100%;
+      height: 100%;
+      min-height: 340px;
+      background: #222;
+      color: #fff;
+      border-radius: 12px;
+      border: none;
+      font-size: 1.08rem;
+      padding: 18px;
+      box-shadow: 0 2px 12px #222;
+      resize: vertical;
+      margin-bottom: 18px;
+    }
+    .mindmap-container {
+      flex: 1;
+      background: #222;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px #222;
+      padding: 0;
+      overflow: auto;
+      min-height: 340px;
+      position: relative;
+    }
+    .mindmap-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .footer-bar {
+      text-align: center;
+      color: #00e6e6;
+      margin-top: 24px;
+      font-size: 1rem;
+      letter-spacing: 1px;
+    }
+    @media (max-width: 900px) {
+      .container-main {
+        flex-direction: column;
+        height: auto;
+        max-width: 98vw;
+      }
+      .left-panel, .right-panel {
+        padding: 18px 8px;
+      }
+      .mindmap-container {
+        min-height: 220px;
+      }
+    }
+  </style>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+  <div class="header-bar">
+    <div>
+      <a href="/tools/index.html" class="ui teal button"><i class="fa fa-home"></i> 返回首页</a>
+      <label for="importMd" class="ui blue button"><i class="fa fa-upload"></i> 导入 Markdown</label>
+      <input type="file" id="importMd" accept=".md,.txt" style="display:none">
+    </div>
+    <div class="title-main">Markdown 思维导图生成器</div>
+    <div></div>
+  </div>
+  <div class="container-main">
+    <div class="left-panel">
+      <textarea id="markdownInput" class="markdown-input" placeholder="在此输入 Markdown 内容...\n支持 # 一级标题、## 二级标题、### 三级标题...\n每个标题会自动生成思维导图节点"></textarea>
+    </div>
+    <div class="right-panel">
+      <div class="mindmap-toolbar">
+        <button class="ui orange button" id="exportPng"><i class="fa fa-image"></i> 导出 PNG</button>
+        <button class="ui violet button" id="exportSvg"><i class="fa fa-project-diagram"></i> 导出 SVG</button>
+      </div>
+      <div class="mindmap-container" id="mindmapContainer"></div>
+    </div>
+  </div>
+  <div class="footer-bar">技术改变世界，思考引领未来 | Powered by lmxxf</div>
+
+  <script>
+
+    // Markdown 解析为树结构
+    function parseMarkdown(md) {
+      const lines = md.split(/\r?\n/);
+      const root = { name: '思维导图', children: [] };
+      const stack = [root];
+      lines.forEach(line => {
+        const match = line.match(/^(#+)\s+(.*)$/);
+        if (match) {
+          const level = match[1].length;
+          const name = match[2].trim();
+          const node = { name, children: [] };
+          while (stack.length > level) stack.pop();
+          stack[stack.length - 1].children.push(node);
+          stack.push(node);
+        }
+      });
+      return root;
+    }
+
+    // 渲染思维导图
+    function renderMindmap() {
+      const md = document.getElementById('markdownInput').value;
+      const data = parseMarkdown(md);
+      const container = document.getElementById('mindmapContainer');
+      container.innerHTML = '';
+      const width = container.offsetWidth || 800;
+      const height = container.offsetHeight || 600;
+      const svg = d3.select(container)
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height);
+
+      const treeLayout = d3.tree().size([height - 40, width - 160]);
+      const root = d3.hierarchy(data);
+      treeLayout(root);
+
+      // 只渲染非根节点的节点（无连线）
+      const nodes = root.descendants().filter(d => d.depth > 0);
+      const colorArr = ['#00e6e6','#ffb347','#ff6f91','#6a89cc','#f8a5c2','#63cdda','#f7f1e3','#f3a683','#778beb'];
+      svg.selectAll('g.node')
+        .data(nodes)
+        .join('g')
+        .attr('class', 'node')
+        .attr('transform', d => `translate(${d.y + 80},${d.x + 20})`)
+        .each(function(d,i){
+          d3.select(this)
+            .append('rect')
+            .attr('x', -55)
+            .attr('y', -22)
+            .attr('width', 110)
+            .attr('height', 36)
+            .attr('rx', 10)
+            .attr('fill', colorArr[d.depth % colorArr.length]);
+          d3.select(this)
+            .append('text')
+            .attr('x', 0)
+            .attr('y', 0)
+            .attr('text-anchor', 'middle')
+            .attr('alignment-baseline', 'middle')
+            .text(d.data.name)
+            .attr('font-size', '1.05rem')
+            .attr('fill', '#222')
+            .attr('font-weight', 'bold');
+        });
+    }
+
+    document.getElementById('markdownInput').addEventListener('input', renderMindmap);
+    window.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('markdownInput').value = '# 项目规划\n## 需求分析\n### 用户调研\n### 功能列表\n## 设计\n### UI设计\n### 架构设计\n## 开发\n### 前端\n### 后端\n## 测试\n### 单元测试\n### 集成测试\n## 部署\n';
+      renderMindmap();
+    });
+
+    // 导入 Markdown 文件
+    document.getElementById('importMd').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        document.getElementById('markdownInput').value = evt.target.result;
+        renderMindmap();
+      };
+      reader.readAsText(file);
+    });
+
+    // 导出 PNG
+    document.getElementById('exportPng').onclick = function() {
+      const svg = document.querySelector('#mindmapContainer svg');
+      if (!svg) return;
+      const serializer = new XMLSerializer();
+      const source = serializer.serializeToString(svg);
+      const image = new Image();
+      image.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(source)));
+      image.onload = function() {
+        const canvas = document.createElement('canvas');
+        canvas.width = svg.width.baseVal.value;
+        canvas.height = svg.height.baseVal.value;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(image, 0, 0);
+        const a = document.createElement('a');
+        a.download = 'mindmap.png';
+        a.href = canvas.toDataURL('image/png');
+        a.click();
+      };
+    };
+    // 导出 SVG
+    document.getElementById('exportSvg').onclick = function() {
+      const svg = document.querySelector('#mindmapContainer svg');
+      if (!svg) return;
+      const serializer = new XMLSerializer();
+      const source = serializer.serializeToString(svg);
+      const a = document.createElement('a');
+      a.download = 'mindmap.svg';
+      a.href = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(source)));
+      a.click();
+    };
+  </script>
+</body>
+</html>

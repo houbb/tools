@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>交互式雷达图 · 导出 SVG/PNG</title>
+  <style>
+    :root {
+      --bg: #0b0f1a;
+      --panel: rgba(255,255,255,0.06);
+      --panel-strong: rgba(255,255,255,0.12);
+      --text: #e6edf3;
+      --muted: #96a3b0;
+      --accent: #7c5cff;
+      --accent-2: #2cd4d9;
+      --danger: #ff5d7a;
+      --ok: #2ee59d;
+      --ring: rgba(124,92,255,0.35);
+      --shadow: 0 10px 30px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.35);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background: radial-gradient(1200px 1200px at 80% -10%, rgba(124,92,255,0.2), transparent 60%),
+                  radial-gradient(900px 900px at -10% 110%, rgba(44,212,217,0.18), transparent 60%),
+                  var(--bg);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      letter-spacing: 0.2px;
+    }
+    .wrap {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 22px;
+      padding: 28px;
+      min-height: 100dvh;
+    }
+    @media (max-width: 980px) {
+      .wrap { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+    header.card {
+      grid-column: 1 / -1;
+      padding: 18px 22px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    header h1 { font-size: 18px; margin: 0; letter-spacing: .4px; }
+    header .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+    .left.card { padding: 18px; }
+    .right.card { position: relative; overflow: hidden; }
+
+    .hint { color: var(--muted); font-size: 12px; }
+
+    .row { display: grid; grid-template-columns: 1fr 64px; gap: 10px; margin: 12px 0; }
+    .row .range { grid-column: 1 / -1; }
+    .row input[type="text"], .row input[type="number"] {
+      width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--panel-strong);
+      background: var(--panel); color: var(--text); outline: none;
+    }
+    .row input[type="text"]:focus, .row input[type="number"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,92,255,0.25); }
+    .row input[type="number"] { text-align: right; }
+
+    input[type="range"] {
+      width: 100%; appearance: none; height: 6px; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 8px 12px;
+      border: 1px solid var(--panel-strong); background: var(--panel); color: var(--text); font-size: 13px; cursor: pointer; user-select: none;
+      transition: transform .08s ease, background .2s ease; text-decoration: none;
+    }
+    .pill:hover { background: rgba(255,255,255,0.12); }
+    .pill:active { transform: translateY(1px) scale(0.99); }
+    .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--ring); }
+
+    .tools { display: flex; flex-wrap: wrap; gap: 10px; }
+    .section-title { margin: 4px 0 8px; font-size: 13px; color: var(--muted); }
+
+    .list { max-height: 60vh; overflow: auto; padding-right: 4px; }
+    .list::-webkit-scrollbar { width: 8px; }
+    .list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 999px; }
+
+    .footer-note { color: var(--muted); font-size: 12px; margin-top: 10px; display: flex; gap: 8px; align-items: center; }
+
+    /* Radar stage */
+    .stage { position: relative; min-height: 520px; display: grid; place-items: center; }
+    .stage .bg-glow {
+      position: absolute; inset: -20%; z-index: 0; pointer-events: none;
+      background: radial-gradient(50% 50% at 50% 50%, rgba(124,92,255,0.22), transparent 65%),
+                  radial-gradient(35% 35% at 80% 30%, rgba(44,212,217,0.22), transparent 60%);
+      filter: blur(50px);
+    }
+
+    .hud { position: absolute; right: 16px; top: 16px; display: grid; gap: 8px; z-index: 3; }
+    .hud .badge { font-size: 12px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--panel-strong); background: var(--panel); color: var(--muted); }
+
+    svg { width: min(86vmin, 820px); height: min(86vmin, 820px); display: block; z-index: 2; }
+    .grid-ring { fill: none; stroke: rgba(255,255,255,0.12); stroke-width: 1; }
+    .axis-line { stroke: rgba(255,255,255,0.18); stroke-width: 1; }
+    .label { fill: var(--text); font-size: 12px; dominant-baseline: middle; text-anchor: middle; opacity: .9; }
+    .value-dot { fill: var(--ok); filter: drop-shadow(0 0 8px rgba(46, 229, 157, .35)); }
+    .shape-fill { fill: url(#gradFill); opacity: .6; }
+    .shape-stroke { fill: none; stroke: url(#gradStroke); stroke-width: 2.5; filter: drop-shadow(0 3px 12px rgba(124,92,255,0.35)); }
+
+    .watermark { position: absolute; bottom: 10px; right: 14px; color: var(--muted); font-size: 12px; opacity: .7; z-index: 4; }
+
+    .empty-tip { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); text-align: center; padding: 0 16px; pointer-events: none; }
+
+    .danger { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="card">
+      <h1>⚡ 交互式雷达图生成器 <span class="hint">（输入维度与数值 → 实时绘制 → 导出 SVG/PNG）</span></h1>
+      <div class="actions tools">
+        <a class="pill" href="https://houbb.github.io/tools/" target="_self">⬅ 返回首页</a>
+        <button class="pill" id="btnPreset"><span class="dot"></span>载入示例</button>
+        <button class="pill" id="btnExportSVG">导出 SVG</button>
+        <button class="pill" id="btnExportPNG">导出 PNG</button>
+        <input type="file" id="importSVG" accept="image/svg+xml, .svg" style="display:none" />
+        <button class="pill" id="btnImportSVG">导入 SVG</button>
+      </div>
+    </header>
+
+    <aside class="left card">
+      <div class="section-title">维度与数值（0–100，可拖动滑条）</div>
+      <div class="tools" style="margin-bottom:10px">
+        <button class="pill" id="btnAdd">＋ 添加维度</button>
+        <button class="pill" id="btnClear">🗑 清空</button>
+      </div>
+      <div class="list" id="dimensionList"></div>
+      <div class="footer-note">
+        <span>提示：双击维度名可快速全选编辑；值支持输入或拖动。</span>
+      </div>
+    </aside>
+
+    <main class="right card stage">
+      <div class="bg-glow"></div>
+      <div class="hud">
+        <span class="badge" id="badgeInfo">维度：0 · 半径：320</span>
+      </div>
+      <div class="empty-tip" id="emptyTip">没有维度数据，先在左侧添加维度吧～</div>
+      <svg id="radar" viewBox="-380 -380 760 760" aria-label="雷达图可视化" role="img" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="gradFill" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="rgba(124,92,255,0.55)"/>
+            <stop offset="100%" stop-color="rgba(44,212,217,0.55)"/>
+          </linearGradient>
+          <linearGradient id="gradStroke" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#7c5cff"/>
+            <stop offset="100%" stop-color="#2cd4d9"/>
+          </linearGradient>
+          <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        <g id="grid"></g>
+        <g id="axes"></g>
+        <g id="shape"></g>
+        <g id="dots"></g>
+        <g id="labels"></g>
+      </svg>
+      <div class="watermark">Radar by You ✦</div>
+    </main>
+  </div>
+
+  <template id="rowTpl">
+    <div class="row" data-row>
+      <input type="text" data-name placeholder="维度名称" value="" maxlength="32"/>
+      <input type="number" data-value min="0" max="100" value="50"/>
+      <input class="range" type="range" data-range min="0" max="100" value="50"/>
+    </div>
+  </template>
+
+  <script>
+    const state = {
+      radius: 320, // 图半径
+      max: 100,    // 最大值
+      dims: []     // {name, value}
+    };
+
+    const el = (sel, root=document) => root.querySelector(sel);
+    const els = (sel, root=document) => [...root.querySelectorAll(sel)];
+
+    const dom = {
+      list: el('#dimensionList'),
+      rowTpl: el('#rowTpl'),
+      btnAdd: el('#btnAdd'),
+      btnClear: el('#btnClear'),
+      btnPreset: el('#btnPreset'),
+      btnExportSVG: el('#btnExportSVG'),
+      btnExportPNG: el('#btnExportPNG'),
+      btnImportSVG: el('#btnImportSVG'),
+      importInput: el('#importSVG'),
+      badge: el('#badgeInfo'),
+      svg: el('#radar'),
+      grid: el('#grid'),
+      axes: el('#axes'),
+      shape: el('#shape'),
+      dots: el('#dots'),
+      labels: el('#labels'),
+      emptyTip: el('#emptyTip')
+    };
+
+    function addRow(name = '', value = 50) {
+      const node = dom.rowTpl.content.firstElementChild.cloneNode(true);
+      const nameInp = el('[data-name]', node);
+      const numInp = el('[data-value]', node);
+      const range = el('[data-range]', node);
+
+      nameInp.value = name;
+      numInp.value = value;
+      range.value = value;
+
+      const sync = (v) => {
+        v = clamp(+v, 0, state.max);
+        numInp.value = v; range.value = v; 
+        updateDimsFromUI();
+      };
+      nameInp.addEventListener('input', () => updateDimsFromUI());
+      numInp.addEventListener('input', e => sync(e.target.value));
+      range.addEventListener('input', e => sync(e.target.value));
+
+      dom.list.appendChild(node);
+      updateDimsFromUI();
+    }
+
+    function clearRows() {
+      dom.list.innerHTML = '';
+      state.dims = [];
+      render();
+    }
+
+    function preset() {
+      clearRows();
+      const data = [
+        ['可靠性 Reliability', 82],
+        ['可扩展性 Scalability', 76],
+        ['延迟 Latency', 64],
+        ['成本 Cost', 48],
+        ['开发体验 DX', 72],
+        ['安全性 Security', 88]
+      ];
+      data.forEach(([n,v]) => addRow(n, v));
+    }
+
+    function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+
+    function updateDimsFromUI(){
+      state.dims = els('[data-row]', dom.list).map(row => ({
+        name: el('[data-name]', row).value.trim() || '未命名',
+        value: clamp(+el('[data-value]', row).value || 0, 0, state.max)
+      }));
+      render();
+    }
+
+    function polarToCartesian(angle, r){
+      // angle: radians, 0 at -Y (top)
+      const x = r * Math.sin(angle);
+      const y = -r * Math.cos(angle);
+      return [x, y];
+    }
+
+    function buildPath(points){
+      return points.map((p,i)=> (i? 'L':'M') + p[0].toFixed(2) + ' ' + p[1].toFixed(2)).join(' ') + ' Z';
+    }
+
+    function render(){
+      const N = state.dims.length;
+      dom.badge.textContent = `维度：${N} · 半径：${state.radius}`;
+      dom.emptyTip.style.display = N ? 'none' : 'grid';
+      dom.grid.innerHTML = '';
+      dom.axes.innerHTML = '';
+      dom.shape.innerHTML = '';
+      dom.dots.innerHTML = '';
+      dom.labels.innerHTML = '';
+      if(!N){ return; }
+
+      // Grid rings
+      const rings = 5;
+      for(let i=1;i<=rings;i++){
+        const r = state.radius * (i / rings);
+        const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        c.setAttribute('class','grid-ring');
+        c.setAttribute('r', r);
+        dom.grid.appendChild(c);
+      }
+
+      const angleStep = Math.PI * 2 / N;
+
+      // Axes + Labels
+      state.dims.forEach((d, i) => {
+        const angle = i * angleStep;
+        const [ax, ay] = polarToCartesian(angle, state.radius);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('class','axis-line');
+        line.setAttribute('x1', 0); line.setAttribute('y1', 0);
+        line.setAttribute('x2', ax.toFixed(2)); line.setAttribute('y2', ay.toFixed(2));
+        dom.axes.appendChild(line);
+
+        // label position (slightly outside)
+        const [lx, ly] = polarToCartesian(angle, state.radius + 26);
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('class','label');
+        label.setAttribute('x', lx.toFixed(2));
+        label.setAttribute('y', ly.toFixed(2));
+        label.textContent = d.name;
+        dom.labels.appendChild(label);
+      });
+
+      // Shape points
+      const points = state.dims.map((d, i) => {
+        const angle = i * angleStep;
+        const r = (d.value / state.max) * state.radius;
+        return polarToCartesian(angle, r);
+      });
+
+      // Smooth animate between old and new by reading last path
+      const prev = dom.shape.querySelector('path');
+      const draw = (pts) => {
+        dom.shape.innerHTML = '';
+        const pFill = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        pFill.setAttribute('d', buildPath(pts));
+        pFill.setAttribute('class','shape-fill');
+        pFill.setAttribute('filter','url(#softGlow)');
+        dom.shape.appendChild(pFill);
+
+        const pStroke = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        pStroke.setAttribute('d', buildPath(pts));
+        pStroke.setAttribute('class','shape-stroke');
+        dom.shape.appendChild(pStroke);
+
+        // Dots
+        dom.dots.innerHTML = '';
+        pts.forEach(([x,y]) => {
+          const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+          dot.setAttribute('class','value-dot');
+          dot.setAttribute('cx', x.toFixed(2));
+          dot.setAttribute('cy', y.toFixed(2));
+          dot.setAttribute('r', 4);
+          dom.dots.appendChild(dot);
+        });
+      };
+
+      if(prev){
+        // try to interpolate end points from previous path to new points
+        const prevD = prev.getAttribute('d');
+        const prevPts = prevD.replace(/[A-Z]/g,' ').trim().split(/\s+/)
+          .reduce((acc, val, idx, arr)=>{
+            if(idx%2===0){ acc.push([+val, +arr[idx+1]]); }
+            return acc;
+          },[]);
+        if(prevPts.length === points.length){
+          tween(prevPts, points, 220, draw);
+        } else {
+          draw(points);
+        }
+      } else {
+        draw(points);
+      }
+    }
+
+    function tween(aPts, bPts, dur, cb){
+      const t0 = performance.now();
+      function lerp(a,b,t){ return a + (b-a)*t; }
+      function step(now){
+        const t = clamp((now - t0)/dur, 0, 1);
+        const cur = aPts.map((ap, i)=> [ lerp(ap[0], bPts[i][0], t), lerp(ap[1], bPts[i][1], t) ]);
+        cb(cur);
+        if(t < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    // === Export helpers ===
+    function download(filename, blob){
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 200);
+    }
+
+    function embedSvgCSS(svg){
+      // 将与 SVG 相关的样式内联到 <style> 中，保证导出时不丢失样式
+      const css = `
+        .grid-ring{fill:none;stroke:rgba(255,255,255,0.12);stroke-width:1}
+        .axis-line{stroke:rgba(255,255,255,0.18);stroke-width:1}
+        .label{fill:#e6edf3;font-size:12px;dominant-baseline:middle;text-anchor:middle;opacity:.9}
+        .value-dot{fill:#2ee59d;filter:drop-shadow(0 0 8px rgba(46,229,157,.35))}
+        .shape-fill{fill:url(#gradFill);opacity:.6}
+        .shape-stroke{fill:none;stroke:url(#gradStroke);stroke-width:2.5;filter:drop-shadow(0 3px 12px rgba(124,92,255,.35))}
+      `;
+      const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+      style.setAttribute('type','text/css');
+      style.appendChild(document.createTextNode(css));
+      svg.insertBefore(style, svg.firstChild);
+      svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
+      svg.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
+      return svg;
+    }
+
+    function serializeSVG(svg){
+      const s = new XMLSerializer();
+      let src = s.serializeToString(svg);
+      if(!src.match(/^<\?xml/)) src = `<?xml version="1.0" encoding="UTF-8"?>\n` + src;
+      return src;
+    }
+
+    function exportSVG(){
+      const clone = dom.svg.cloneNode(true);
+      embedSvgCSS(clone);
+      const src = serializeSVG(clone);
+      const blob = new Blob([src], {type:'image/svg+xml;charset=utf-8'});
+      download(`radar-${Date.now()}.svg`, blob);
+    }
+
+    function exportPNG(){
+      const clone = dom.svg.cloneNode(true);
+      embedSvgCSS(clone);
+      const src = serializeSVG(clone);
+      const img = new Image();
+      const size = 1080; // 导出尺寸
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      img.onload = () => {
+        // 背景色
+        ctx.fillStyle = '#0b0f1a';
+        ctx.fillRect(0,0,size,size);
+        ctx.drawImage(img, 0, 0, size, size);
+        canvas.toBlob(b => download(`radar-${Date.now()}.png`, b), 'image/png');
+      };
+      const svg64 = btoa(unescape(encodeURIComponent(src)));
+      img.src = 'data:image/svg+xml;base64,' + svg64;
+    }
+
+    // === SVG Import ===
+    function importSVGText(text){
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(text, 'image/svg+xml');
+      const imported = doc.documentElement;
+      if(imported && imported.nodeName.toLowerCase() === 'svg'){
+        // 简单策略：替换现有 <svg> 的内部结构进行展示（不会同步回左侧表单）
+        dom.svg.innerHTML = imported.innerHTML;
+      } else {
+        alert('未识别的 SVG 文件');
+      }
+    }
+
+    // === Events ===
+    dom.btnAdd.addEventListener('click', () => addRow('新维度', 50));
+    dom.btnClear.addEventListener('click', clearRows);
+    dom.btnPreset.addEventListener('click', preset);
+    dom.btnExportSVG.addEventListener('click', exportSVG);
+    dom.btnExportPNG.addEventListener('click', exportPNG);
+
+    dom.btnImportSVG.addEventListener('click', ()=> dom.importInput.click());
+    dom.importInput.addEventListener('change', e => {
+      const file = e.target.files && e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => importSVGText(ev.target.result);
+      reader.readAsText(file);
+      // 重置 input 允许重复导入同一文件
+      e.target.value = '';
+    });
+
+    // init
+    preset();
+  </script>
+</body>
+</html>

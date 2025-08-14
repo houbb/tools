@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>商业模式画布生成器</title>
+<style>
+    /* 全局样式 */
+    body {
+        margin: 0;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100vh;
+        overflow-x: hidden;
+    }
+
+    h1 {
+        margin-top: 20px;
+        font-size: 2em;
+        text-align: center;
+        text-shadow: 2px 2px 6px rgba(0,0,0,0.5);
+    }
+
+    .container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 95%;
+        max-width: 1300px;
+        margin: 20px 0;
+    }
+
+    /* 输入区域 */
+    .input-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 15px;
+        margin-bottom: 25px;
+        width: 100%;
+    }
+
+    .input-grid textarea {
+        width: 100%;
+        height: 100px;
+        border-radius: 10px;
+        border: none;
+        padding: 10px;
+        resize: none;
+        font-size: 0.9em;
+        background: rgba(255,255,255,0.1);
+        color: #fff;
+        backdrop-filter: blur(5px);
+    }
+
+    .input-grid textarea::placeholder {
+        color: rgba(255,255,255,0.6);
+    }
+
+    /* 按钮 */
+    .buttons {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 30px;
+        flex-wrap: wrap;
+    }
+
+    button {
+        padding: 12px 25px;
+        font-size: 1em;
+        border: none;
+        border-radius: 10px;
+        background: linear-gradient(45deg,#ff6a00,#ee0979);
+        color: #fff;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    button:hover {
+        transform: scale(1.05);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    }
+
+    /* 商业画布 */
+    .canvas-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 15px;
+        width: 100%;
+        margin-bottom: 30px;
+    }
+
+    .canvas-grid .card {
+        background: rgba(255,255,255,0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        padding: 20px;
+        min-height: 150px;
+        transition: transform 0.3s, box-shadow 0.3s;
+        cursor: pointer;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .canvas-grid .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+
+    .card h3 {
+        margin: 0 0 10px 0;
+        font-size: 1.1em;
+        border-bottom: 1px solid rgba(255,255,255,0.3);
+        padding-bottom: 5px;
+    }
+
+    .card .content {
+        flex-grow: 1;
+        overflow: auto;
+        font-size: 0.9em;
+        line-height: 1.4;
+    }
+
+    .card.collapsed .content {
+        display: none;
+    }
+
+    /* 返回首页 */
+    .home-link {
+        color: #fff;
+        text-decoration: none;
+        margin-bottom: 40px;
+        font-weight: bold;
+        font-size: 1.1em;
+        transition: color 0.2s;
+    }
+
+    .home-link:hover {
+        color: #ffd700;
+    }
+
+    @media (max-width: 1000px) {
+        .input-grid, .canvas-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+</head>
+<body>
+
+<h1>商业模式画布生成器</h1>
+
+<div class="container">
+
+    <!-- 输入区域 -->
+    <div class="input-grid">
+        <textarea id="valueProposition" placeholder="价值主张">无痛学习 + 兴趣绑定，让用户持久完成学习任务</textarea>
+        <textarea id="customerSegments" placeholder="客户细分">大学生四六级、雅思托福考生、职场英语提升人群</textarea>
+        <textarea id="channels" placeholder="渠道通路">微博种子用户、兴趣社区推广、广告投放</textarea>
+        <textarea id="customerRelationships" placeholder="客户关系">反馈板/消息通知，保持长期互动和付费转化</textarea>
+        <textarea id="revenueStreams" placeholder="收入来源">会员订阅、付费词库、合作推广</textarea>
+        <textarea id="keyResources" placeholder="关键资源">图片资源、音频TTS、人力、服务器</textarea>
+        <textarea id="keyActivities" placeholder="关键活动">开发MVP、用户测试、功能迭代、增长优化</textarea>
+        <textarea id="keyPartners" placeholder="关键合作伙伴">图片作者、技术合作方、社群运营者</textarea>
+        <textarea id="costStructure" placeholder="成本结构">开发成本、版权成本、服务器、推广广告</textarea>
+    </div>
+
+    <!-- 按钮 -->
+    <div class="buttons">
+        <button onclick="generateCanvas()">生成商业画布</button>
+        <button onclick="clearCanvas()">清空画布</button>
+    </div>
+
+    <!-- 输出画布 -->
+    <div class="canvas-grid">
+        <div class="card collapsed" onclick="toggleCard(this)"><h3>价值主张</h3><div class="content" id="cvp"></div></div>
+        <div class="card collapsed" onclick="toggleCard(this)"><h3>客户细分</h3><div class="content" id="ccs"></div></div>
+        <div class="card collapsed" onclick="toggleCard(this)"><h3>渠道通路</h3><div class="content" id="cch"></div></div>
+        <div class="card collapsed" onclick="toggleCard(this)"><h3>客户关系</h3><div class="content" id="ccr"></div></div>
+        <div class="card collapsed" onclick="toggleCard(this)"><h3>收入来源</h3><div class="content" id="crs"></div></div>
+        <div class="card collapsed" onclick="toggleCard(this)"><h3>关键资源</h3><div class="content" id="ckr"></div></div>
+        <div class="card collapsed" onclick="toggleCard(this)"><h3>关键活动</h3><div class="content" id="cka"></div></div>
+        <div class="card collapsed" onclick="toggleCard(this)"><h3>关键合作伙伴</h3><div class="content" id="ckp"></div></div>
+        <div class="card collapsed" onclick="toggleCard(this)"><h3>成本结构</h3><div class="content" id="ccs2"></div></div>
+    </div>
+
+    <a class="home-link" href="https://houbb.github.io/tools/">← 返回首页</a>
+
+</div>
+
+<script>
+function generateCanvas() {
+    document.getElementById('cvp').innerText = document.getElementById('valueProposition').value;
+    document.getElementById('ccs').innerText = document.getElementById('customerSegments').value;
+    document.getElementById('cch').innerText = document.getElementById('channels').value;
+    document.getElementById('ccr').innerText = document.getElementById('customerRelationships').value;
+    document.getElementById('crs').innerText = document.getElementById('revenueStreams').value;
+    document.getElementById('ckr').innerText = document.getElementById('keyResources').value;
+    document.getElementById('cka').innerText = document.getElementById('keyActivities').value;
+    document.getElementById('ckp').innerText = document.getElementById('keyPartners').value;
+    document.getElementById('ccs2').innerText = document.getElementById('costStructure').value;
+
+    // 展开所有卡片
+    document.querySelectorAll('.card').forEach(card => card.classList.remove('collapsed'));
+}
+
+function clearCanvas() {
+    document.querySelectorAll('.canvas-grid .content').forEach(div => div.innerText = '');
+    document.querySelectorAll('.card').forEach(card => card.classList.add('collapsed'));
+}
+
+function toggleCard(card) {
+    card.classList.toggle('collapsed');
+}
+</script>
+
+</body>
+</html>
