@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>交互式四象限图 · 导出 SVG/PNG</title>
+  <style>
+    :root {
+      --bg: #0b0f1a;
+      --panel: rgba(255,255,255,0.06);
+      --panel-strong: rgba(255,255,255,0.12);
+      --text: #e6edf3;
+      --muted: #96a3b0;
+      --accent: #7c5cff;
+      --accent-2: #2cd4d9;
+      --danger: #ff5d7a;
+      --ok: #2ee59d;
+      --ring: rgba(124,92,255,0.35);
+      --shadow: 0 10px 30px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.35);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background: radial-gradient(1200px 1200px at 80% -10%, rgba(124,92,255,0.2), transparent 60%),
+                  radial-gradient(900px 900px at -10% 110%, rgba(44,212,217,0.18), transparent 60%),
+                  var(--bg);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      letter-spacing: 0.2px;
+    }
+    .wrap {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 22px;
+      padding: 28px;
+      min-height: 100dvh;
+    }
+    @media (max-width: 980px) {
+      .wrap { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+    header.card {
+      grid-column: 1 / -1;
+      padding: 18px 22px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    header h1 { font-size: 18px; margin: 0; letter-spacing: .4px; }
+    header .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .left.card { padding: 18px; }
+    .right.card { position: relative; overflow: hidden; }
+    .hint { color: var(--muted); font-size: 12px; }
+    .row { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 12px 0; }
+    .row input[type="text"] {
+      width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--panel-strong);
+      background: var(--panel); color: var(--text); outline: none;
+    }
+    .row input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,92,255,0.25); }
+    .row textarea {
+      width: 100%; min-height: 48px; border-radius: 12px; border: 1px solid var(--panel-strong);
+      background: var(--panel); color: var(--text); outline: none; padding: 10px 12px; resize: vertical;
+    }
+    .row textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,92,255,0.25); }
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 8px 12px;
+      border: 1px solid var(--panel-strong); background: var(--panel); color: var(--text); font-size: 13px; cursor: pointer; user-select: none;
+      transition: transform .08s ease, background .2s ease; text-decoration: none;
+    }
+    .pill:hover { background: rgba(255,255,255,0.12); }
+    .pill:active { transform: translateY(1px) scale(0.99); }
+    .tools { display: flex; flex-wrap: wrap; gap: 10px; }
+    .section-title { margin: 4px 0 8px; font-size: 13px; color: var(--muted); }
+    .footer-note { color: var(--muted); font-size: 12px; margin-top: 10px; display: flex; gap: 8px; align-items: center; }
+    .stage { position: relative; min-height: 520px; display: grid; place-items: center; }
+    .stage .bg-glow {
+      position: absolute; inset: -20%; z-index: 0; pointer-events: none;
+      background: radial-gradient(50% 50% at 50% 50%, rgba(124,92,255,0.22), transparent 65%),
+                  radial-gradient(35% 35% at 80% 30%, rgba(44,212,217,0.22), transparent 60%);
+      filter: blur(50px);
+    }
+    .hud { position: absolute; right: 16px; top: 16px; display: grid; gap: 8px; z-index: 3; }
+    .hud .badge { font-size: 12px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--panel-strong); background: var(--panel); color: var(--muted); }
+    svg { width: min(86vmin, 820px); height: min(86vmin, 820px); display: block; z-index: 2; }
+    .quadrant-line { stroke: var(--accent-2); stroke-width: 2; }
+    .quadrant-label { font-size: 18px; font-weight: bold; fill: var(--accent); text-anchor: middle; dominant-baseline: middle; }
+    .tag-label {
+      font-size: 14px;
+      font-weight: 500;
+      fill: #fff;
+      text-anchor: middle;
+      dominant-baseline: middle;
+      letter-spacing: 0.5px;
+      filter: drop-shadow(0 2px 6px rgba(44,212,217,0.18));
+      rx: 999px;
+      /* 让标签分散排列 */
+    }
+    .axis-label {
+      display: none;
+    }
+    .center-label {
+      font-size: 18px;
+      font-weight: bold;
+      fill: #fff;
+      text-anchor: middle;
+      dominant-baseline: middle;
+      letter-spacing: 1px;
+      filter: drop-shadow(0 2px 6px rgba(44,212,217,0.18));
+      pointer-events: none;
+    }
+    .quadrant-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 8px;
+    }
+    .tag {
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(44,212,217,0.12);
+      border: none;
+      margin-bottom: 4px;
+      user-select: none;
+      transition: background .2s;
+      background: linear-gradient(90deg, #7c5cff 0%, #2cd4d9 100%);
+    }
+    .tag.c1 { background: linear-gradient(90deg, #7c5cff 0%, #2cd4d9 100%); }
+    .tag.c2 { background: linear-gradient(90deg, #ff5d7a 0%, #7c5cff 100%); }
+    .tag.c3 { background: linear-gradient(90deg, #2ee59d 0%, #2cd4d9 100%); }
+    .tag.c4 { background: linear-gradient(90deg, #7c5cff 0%, #2ee59d 100%); }
+    .tag.c5 { background: linear-gradient(90deg, #ff5d7a 0%, #2ee59d 100%); }
+    .tag.c6 { background: linear-gradient(90deg, #2cd4d9 0%, #ff5d7a 100%); }
+    .tag.c7 { background: linear-gradient(90deg, #2ee59d 0%, #ff5d7a 100%); }
+    .tag.c8 { background: linear-gradient(90deg, #7c5cff 0%, #ff5d7a 100%); }
+    .quadrant-info { font-size: 13px; fill: var(--muted); text-anchor: middle; dominant-baseline: middle; }
+    .watermark { position: absolute; bottom: 10px; right: 14px; color: var(--muted); font-size: 12px; opacity: .7; z-index: 4; }
+    .empty-tip { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); text-align: center; padding: 0 16px; pointer-events: none; }
+    .danger { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="card">
+      <h1>⚡ 交互式四象限图生成器 <span class="hint">（输入象限名称与描述 → 实时绘制 → 导出 SVG/PNG）</span></h1>
+      <div class="actions tools">
+        <a class="pill" href="https://houbb.github.io/tools/" target="_self">⬅ 返回首页</a>
+        <button class="pill" id="btnPreset"><span class="dot"></span>载入示例</button>
+        <button class="pill" id="btnExportSVG">导出 SVG</button>
+        <button class="pill" id="btnExportPNG">导出 PNG</button>
+      </div>
+    </header>
+    <aside class="left card">
+      <div class="section-title">四象限信息</div>
+      <div class="row"><input type="text" id="q1name" placeholder="第一象限名称" maxlength="20" /></div>
+      <div class="row"><textarea id="q1info" placeholder="第一象限描述" maxlength="80"></textarea></div>
+      <div class="row"><input type="text" id="q2name" placeholder="第二象限名称" maxlength="20" /></div>
+      <div class="row"><textarea id="q2info" placeholder="第二象限描述" maxlength="80"></textarea></div>
+      <div class="row"><input type="text" id="q3name" placeholder="第三象限名称" maxlength="20" /></div>
+      <div class="row"><textarea id="q3info" placeholder="第三象限描述" maxlength="80"></textarea></div>
+      <div class="row"><input type="text" id="q4name" placeholder="第四象限名称" maxlength="20" /></div>
+      <div class="row"><textarea id="q4info" placeholder="第四象限描述" maxlength="80"></textarea></div>
+      <div class="footer-note">
+        <span>提示：可自定义每个象限的名称与描述，右侧实时预览。</span>
+      </div>
+    </aside>
+    <main class="right card stage">
+      <div class="bg-glow"></div>
+      <div class="hud">
+        <span class="badge" id="badgeInfo">四象限 · 交互式渲染</span>
+      </div>
+      <svg id="quadrant" viewBox="-320 -320 640 640" aria-label="四象限可视化" role="img" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="axis-gradient" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#7c5cff"/>
+            <stop offset="100%" stop-color="#2cd4d9"/>
+          </linearGradient>
+        </defs>
+  <g id="quadrantLines"></g>
+  <g id="quadrantRects"></g>
+  <g id="centerLabels"></g>
+  <g id="quadrantTags"></g>
+      </svg>
+      <div class="watermark">Quadrant by You ✦</div>
+    </main>
+  </div>
+  <script>
+    const dom = {
+      q1name: document.getElementById('q1name'),
+      q1info: document.getElementById('q1info'),
+      q2name: document.getElementById('q2name'),
+      q2info: document.getElementById('q2info'),
+      q3name: document.getElementById('q3name'),
+      q3info: document.getElementById('q3info'),
+      q4name: document.getElementById('q4name'),
+      q4info: document.getElementById('q4info'),
+      badge: document.getElementById('badgeInfo'),
+      svg: document.getElementById('quadrant'),
+      lines: document.getElementById('quadrantLines'),
+      axisLabels: document.getElementById('axisLabels'),
+      rects: document.getElementById('quadrantRects'),
+      tags: document.getElementById('quadrantTags'),
+      btnPreset: document.getElementById('btnPreset'),
+      btnExportSVG: document.getElementById('btnExportSVG'),
+      btnExportPNG: document.getElementById('btnExportPNG'),
+    };
+
+    function splitTags(str) {
+      if (!str) return [];
+      return str.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    }
+
+    function renderQuadrant() {
+      dom.lines.innerHTML = '';
+      dom.rects.innerHTML = '';
+      dom.tags.innerHTML = '';
+      if(dom.centerLabels) dom.centerLabels.innerHTML = '';
+      // 绘制两条交叉线
+      for(let i=0;i<2;i++){
+        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+        if(i===0){ line.setAttribute('x1',-320); line.setAttribute('y1',0); line.setAttribute('x2',320); line.setAttribute('y2',0); }
+        else{ line.setAttribute('x1',0); line.setAttribute('y1',-320); line.setAttribute('x2',0); line.setAttribute('y2',320); }
+        line.setAttribute('class','quadrant-line');
+        dom.lines.appendChild(line);
+      }
+      // 四个象限的彩色方块和中心名称
+      const colors = ['#7c5cff','#2cd4d9','#ff5d7a','#2ee59d'];
+      const infos = [dom.q1info.value,dom.q2info.value,dom.q3info.value,dom.q4info.value];
+      const names = [dom.q1name.value||'能力提升',dom.q2name.value||'高效协作',dom.q3name.value||'创新突破',dom.q4name.value||'持续成长'];
+      const positions = [
+        {x:120,y:-120}, // 第一象限（右上）
+        {x:120,y:120},  // 第二象限（右下）
+        {x:-120,y:120}, // 第三象限（左下）
+        {x:-120,y:-120} // 第四象限（左上）
+      ];
+      for(let i=0;i<4;i++){
+        // 方块
+        const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+        rect.setAttribute('x',positions[i].x-80);
+        rect.setAttribute('y',positions[i].y-40);
+        rect.setAttribute('width',160);
+        rect.setAttribute('height',80);
+        rect.setAttribute('rx',18);
+        rect.setAttribute('fill',colors[i]);
+        rect.setAttribute('opacity',0.85);
+        dom.rects.appendChild(rect);
+        // 中心名称
+        const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+        label.setAttribute('class','center-label');
+        label.setAttribute('x',positions[i].x);
+        label.setAttribute('y',positions[i].y-24);
+        label.textContent = names[i];
+        if(dom.centerLabels) dom.centerLabels.appendChild(label);
+        // 标签组（每行内容一个标签，分散排列）
+        const tags = splitTags(infos[i]||'');
+        if(tags.length){
+          // 标签分两行排列，每行最多4个
+          const maxPerRow = 4;
+          const tagRows = [];
+          for(let t=0;t<tags.length;t+=maxPerRow){
+            tagRows.push(tags.slice(t,t+maxPerRow));
+          }
+          let yStart = positions[i].y+8 - (tagRows.length-1)*18;
+          tagRows.forEach((row,rowIdx)=>{
+            // 居中排列
+            let xStart = positions[i].x - ((row.length-1)*50);
+            row.forEach((tag,idx)=>{
+              const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+              t.setAttribute('x',xStart+idx*100);
+              t.setAttribute('y',yStart+rowIdx*36);
+              t.setAttribute('class','tag-label tag c'+(((rowIdx*maxPerRow+idx)%8)+1));
+              t.textContent = tag;
+              dom.tags.appendChild(t);
+            });
+          });
+        }
+      }
+      dom.badge.textContent = '四象限 · 交互式渲染';
+    }
+
+    // 事件绑定（确保输入时实时渲染）
+    [dom.q1name,dom.q1info,dom.q2name,dom.q2info,dom.q3name,dom.q3info,dom.q4name,dom.q4info].forEach(inp=>{
+      inp.addEventListener('input',()=>{
+        renderQuadrant();
+      });
+    });
+    dom.btnPreset.addEventListener('click',function(){
+      dom.q1name.value='能力提升'; dom.q1info.value='学习新技能，提升专业能力';
+      dom.q2name.value='高效协作'; dom.q2info.value='团队协作，沟通与配合';
+      dom.q3name.value='创新突破'; dom.q3info.value='探索新领域，创新思维';
+      dom.q4name.value='持续成长'; dom.q4info.value='持续进步，积累经验';
+      renderQuadrant();
+    });
+    // 导出 SVG
+    dom.btnExportSVG.addEventListener('click',function(){
+      const clone = dom.svg.cloneNode(true);
+      const style = document.createElementNS('http://www.w3.org/2000/svg','style');
+      style.setAttribute('type','text/css');
+      style.appendChild(document.createTextNode(`
+        .quadrant-line{stroke:#2cd4d9;stroke-width:2}
+        .axis-label{font-size:18px;font-weight:bold;fill:url(#axis-gradient);text-anchor:middle;dominant-baseline:middle;letter-spacing:1px;filter:drop-shadow(0 2px 6px rgba(44,212,217,0.18));}
+        .quadrant-label{font-size:18px;font-weight:bold;fill:#fff;text-anchor:middle;dominant-baseline:middle;letter-spacing:1px;}
+        .tag{padding:6px 14px;border-radius:999px;font-size:14px;font-weight:500;fill:#fff;background:linear-gradient(90deg,#7c5cff 0%,#2cd4d9 100%);}
+        .tag.alt1{background:linear-gradient(90deg,#ff5d7a 0%,#7c5cff 100%);}
+        .tag.alt2{background:linear-gradient(90deg,#2ee59d 0%,#2cd4d9 100%);}
+        .tag.alt3{background:linear-gradient(90deg,#7c5cff 0%,#2ee59d 100%);}
+        .tag.alt4{background:linear-gradient(90deg,#ff5d7a 0%,#2ee59d 100%);}
+      `));
+      clone.insertBefore(style, clone.firstChild);
+      clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+      clone.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
+      const s = new XMLSerializer();
+      let src = s.serializeToString(clone);
+      if(!src.match(/^<\?xml/)) src = `<?xml version="1.0" encoding="UTF-8"?>\n` + src;
+      const blob = new Blob([src], {type:'image/svg+xml;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `quadrant-${Date.now()}.svg`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 200);
+    });
+    // 导出 PNG
+    dom.btnExportPNG.addEventListener('click',function(){
+      const clone = dom.svg.cloneNode(true);
+      const style = document.createElementNS('http://www.w3.org/2000/svg','style');
+      style.setAttribute('type','text/css');
+      style.appendChild(document.createTextNode(`
+        .quadrant-line{stroke:#2cd4d9;stroke-width:2}
+        .axis-label{font-size:18px;font-weight:bold;fill:url(#axis-gradient);text-anchor:middle;dominant-baseline:middle;letter-spacing:1px;filter:drop-shadow(0 2px 6px rgba(44,212,217,0.18));}
+        .quadrant-label{font-size:18px;font-weight:bold;fill:#fff;text-anchor:middle;dominant-baseline:middle;letter-spacing:1px;}
+        .tag{padding:6px 14px;border-radius:999px;font-size:14px;font-weight:500;fill:#fff;background:linear-gradient(90deg,#7c5cff 0%,#2cd4d9 100%);}
+        .tag.alt1{background:linear-gradient(90deg,#ff5d7a 0%,#7c5cff 100%);}
+        .tag.alt2{background:linear-gradient(90deg,#2ee59d 0%,#2cd4d9 100%);}
+        .tag.alt3{background:linear-gradient(90deg,#7c5cff 0%,#2ee59d 100%);}
+        .tag.alt4{background:linear-gradient(90deg,#ff5d7a 0%,#2ee59d 100%);}
+      `));
+      clone.insertBefore(style, clone.firstChild);
+      clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+      clone.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
+      const s = new XMLSerializer();
+      let src = s.serializeToString(clone);
+      if(!src.match(/^<\?xml/)) src = `<?xml version="1.0" encoding="UTF-8"?>\n` + src;
+      const img = new Image();
+      const size = 800;
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      img.onload = () => {
+        ctx.fillStyle = '#0b0f1a';
+        ctx.fillRect(0,0,size,size);
+        ctx.drawImage(img, 0, 0, size, size);
+        canvas.toBlob(b => {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(b);
+          a.download = `quadrant-${Date.now()}.png`;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 200);
+        }, 'image/png');
+      };
+      const svg64 = btoa(unescape(encodeURIComponent(src)));
+      img.src = 'data:image/svg+xml;base64,' + svg64;
+    });
+    // 初始化默认示例
+    dom.btnPreset.click();
+  </script>
+</body>
+</html>
