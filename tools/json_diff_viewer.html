@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>JSON 比较器 — 可视化差异</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--muted:#9aa4b2;--accent:#7c5cff;--success:#16a34a;--danger:#ef4444;--glass:rgba(255,255,255,0.03)}
+    *{box-sizing:border-box}
+    body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial; margin:0;background:linear-gradient(180deg,#061021 0%, #081428 60%);color:#e6eef8;min-height:100vh}
+    .wrap{max-width:1100px;margin:36px auto;padding:24px}
+    header{display:flex;align-items:center;gap:16px}
+    header h1{margin:0;font-size:20px}
+    header p{margin:0;color:var(--muted);font-size:13px}
+
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:18px;box-shadow:0 6px 30px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.03)}
+
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+    textarea{width:100%;height:260px;background:var(--card);border-radius:8px;border:1px solid rgba(255,255,255,0.03);padding:14px;color:#e6eef8;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;font-size:13px;resize:vertical}
+
+    .controls{display:flex;gap:8px;align-items:center;margin-top:12px}
+    .controls input[type=text]{background:var(--glass);border:none;padding:10px 12px;border-radius:8px;color:var(--muted);min-width:180px}
+    .btn{background:linear-gradient(90deg,var(--accent),#5ec6ff);border:none;color:#041024;padding:10px 14px;border-radius:10px;font-weight:600;cursor:pointer;box-shadow:0 6px 18px rgba(124,92,255,0.18)}
+    .btn.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);box-shadow:none}
+    .summary{display:flex;gap:12px;align-items:center;margin-top:12px}
+    .pill{padding:8px 12px;border-radius:999px;background:rgba(255,255,255,0.02);color:var(--muted);font-size:13px}
+
+    .result-area{margin-top:18px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    thead th{position:sticky;top:0;background:linear-gradient(180deg, rgba(6,10,20,0.9), rgba(6,10,20,0.85));padding:10px;text-align:left;color:var(--muted);font-weight:600;border-bottom:1px solid rgba(255,255,255,0.03)}
+    tbody tr{border-bottom:1px dashed rgba(255,255,255,0.03)}
+    td{padding:10px;vertical-align:top}
+    .path{font-family:ui-monospace,monospace;color:#cbd8ee}
+    .val{white-space:pre-wrap;font-family:ui-monospace,monospace}
+    .added{background:linear-gradient(90deg, rgba(22,163,74,0.08), rgba(22,163,74,0.02));border-left:4px solid rgba(22,163,74,0.32)}
+    .removed{background:linear-gradient(90deg, rgba(239,68,68,0.06), rgba(239,68,68,0.01));border-left:4px solid rgba(239,68,68,0.32)}
+    .changed{background:linear-gradient(90deg, rgba(124,92,255,0.06), rgba(124,92,255,0.01));border-left:4px solid rgba(124,92,255,0.32)}
+    .muted{color:var(--muted)}
+
+    .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+    .controls .small{font-size:12px;padding:8px 10px;border-radius:8px}
+
+    .footer{margin-top:20px;color:var(--muted);font-size:13px}
+
+    @media (max-width:880px){.grid{grid-template-columns:1fr}.wrap{padding:12px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="22" height="22" rx="6" fill="url(#g)"/><path d="M7 9h10M7 15h10M7 12h10" stroke="#0b1220" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div>
+        <h1>JSON 差异比较器</h1>
+        <p>粘贴两个 JSON，支持多层嵌套、数组、过滤字段；下方表格展示每个路径的差异（新增/删除/变化）。</p>
+        <p><a href="https://houbb.github.io/" style="color: #7c5cff; text-decoration: none;">&larr; 返回首页</a></p>
+      </div>
+    </header>
+
+    <div class="card">
+      <div class="grid">
+        <div>
+          <label class="muted">JSON A（原始）</label>
+          <textarea id="jsonA" placeholder='例: {"user": {"id":1,"name":"张三"}}'></textarea>
+        </div>
+        <div>
+          <label class="muted">JSON B（比较）</label>
+          <textarea id="jsonB" placeholder='例: {"user": {"id":1,"name":"李四","age":30}}'></textarea>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="toolbar">
+          <input id="include" type="text" placeholder="只显示包含字段（逗号分隔） — 可空" />
+          <input id="exclude" type="text" placeholder="排除包含字段（逗号分隔） — 可空" />
+          <button class="btn" id="compare">比较</button>
+          <button class="btn secondary" id="pretty">格式化 & 预览</button>
+          <button class="btn secondary" id="loadExample">加载示例</button>
+        </div>
+        <div style="margin-left:auto" class="summary">
+          <div class="pill">对比结果: <span id="total">0</span></div>
+          <div class="pill">新增: <span id="added">0</span></div>
+          <div class="pill">删除: <span id="removed">0</span></div>
+          <div class="pill">变更: <span id="changed">0</span></div>
+        </div>
+      </div>
+
+      <div class="result-area card" id="resultCard" style="margin-top:14px;padding:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
+          <strong>差异明细</strong>
+          <div>
+            <button class="btn secondary small" id="copyCsv">复制为 CSV</button>
+            <button class="btn secondary small" id="downloadJson">导出 JSON</button>
+          </div>
+        </div>
+        <div style="overflow:auto;max-height:420px">
+          <table id="diffTable">
+            <thead>
+              <tr><th style="width:45%">路径</th><th style="width:27%">JSON A</th><th style="width:27%">JSON B</th><th style="width:1%">类型</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="footer">提示：路径使用点号表示属性，数组使用索引，例如 <code>users.0.name</code>. 过滤支持逗号分隔的子串匹配（包含即生效）。</div>
+    </div>
+  </div>
+
+  <script>
+    // flatten JSON to map of path -> value (stringified for display) and raw value
+    function flatten(obj, prefix = ''){
+      const map = new Map();
+      const stack = [{v: obj, p: prefix}];
+      while(stack.length){
+        const {v, p} = stack.pop();
+        if (v !== null && typeof v === 'object'){
+          if (Array.isArray(v)){
+            if (v.length === 0) map.set(p, {raw:v});
+            for(let i=v.length-1;i>=0;i--){
+              const key = p ? p + '.' + i : ''+i;
+              stack.push({v:v[i], p:key});
+            }
+          } else {
+            const keys = Object.keys(v);
+            if (keys.length === 0) map.set(p, {raw:v});
+            for(let i=keys.length-1;i>=0;i--){
+              const k = keys[i];
+              const key = p ? p + '.' + k : k;
+              stack.push({v:v[k], p:key});
+            }
+          }
+        } else {
+          map.set(p, {raw:v});
+        }
+      }
+      // Post-process: convert undefined path '' to root marker
+      if (map.has('')){
+        const val = map.get(''); map.delete(''); map.set('<root>', val);
+      }
+      return map;
+    }
+
+    function stringifyForDisplay(v){
+      if (v === undefined) return 'undefined';
+      if (v === null) return 'null';
+      if (typeof v === 'string') return '"' + v + '"';
+      if (typeof v === 'object') return JSON.stringify(v);
+      return String(v);
+    }
+
+    function computeDiff(mapA, mapB){
+      const all = new Set([...mapA.keys(), ...mapB.keys()]);
+      const rows = [];
+      for (const path of Array.from(all).sort((a,b)=>a.localeCompare(b))){
+        const a = mapA.has(path) ? mapA.get(path).raw : undefined;
+        const b = mapB.has(path) ? mapB.get(path).raw : undefined;
+        if (typeof a === 'undefined' && typeof b !== 'undefined'){
+          rows.push({path, a, b, type:'added'});
+        } else if (typeof a !== 'undefined' && typeof b === 'undefined'){
+          rows.push({path, a, b, type:'removed'});
+        } else {
+          // both exist — compare JSON.stringify deep equality
+          const eq = deepEqual(a,b);
+          if (!eq) rows.push({path, a, b, type:'changed'});
+        }
+      }
+      return rows;
+    }
+
+    function deepEqual(a,b){
+      try{
+        return JSON.stringify(a) === JSON.stringify(b);
+      }catch(e){
+        return Object.is(a,b);
+      }
+    }
+
+    function applyFilters(rows, includeTxt, excludeTxt){
+      const includes = includeTxt.split(',').map(s=>s.trim()).filter(Boolean);
+      const excludes = excludeTxt.split(',').map(s=>s.trim()).filter(Boolean);
+      return rows.filter(r => {
+        const p = r.path;
+        if (includes.length){
+          const ok = includes.some(s=>p.includes(s));
+          if (!ok) return false;
+        }
+        if (excludes.length){
+          const bad = excludes.some(s=>p.includes(s));
+          if (bad) return false;
+        }
+        return true;
+      });
+    }
+
+    function renderRows(rows){
+      const tbody = document.querySelector('#diffTable tbody');
+      tbody.innerHTML = '';
+      let added=0, removed=0, changed=0;
+      for (const r of rows){
+        const tr = document.createElement('tr');
+        tr.classList.add(r.type);
+        const tdPath = document.createElement('td'); tdPath.className='path'; tdPath.textContent = r.path;
+        const tdA = document.createElement('td'); tdA.className='val'; tdA.textContent = stringifyForDisplay(r.a);
+        const tdB = document.createElement('td'); tdB.className='val'; tdB.textContent = stringifyForDisplay(r.b);
+        const tdT = document.createElement('td'); tdT.className='muted'; tdT.textContent = r.type;
+        tr.appendChild(tdPath); tr.appendChild(tdA); tr.appendChild(tdB); tr.appendChild(tdT);
+        tbody.appendChild(tr);
+        if (r.type==='added') added++;
+        if (r.type==='removed') removed++;
+        if (r.type==='changed') changed++;
+      }
+      document.getElementById('total').textContent = rows.length;
+      document.getElementById('added').textContent = added;
+      document.getElementById('removed').textContent = removed;
+      document.getElementById('changed').textContent = changed;
+    }
+
+    document.getElementById('compare').addEventListener('click', ()=>{
+      const aText = document.getElementById('jsonA').value.trim();
+      const bText = document.getElementById('jsonB').value.trim();
+      let aObj, bObj;
+      try{ aObj = aText ? JSON.parse(aText) : undefined; } catch(e){ alert('JSON A 解析失败：' + e.message); return; }
+      try{ bObj = bText ? JSON.parse(bText) : undefined; } catch(e){ alert('JSON B 解析失败：' + e.message); return; }
+
+      const mapA = typeof aObj === 'undefined' ? new Map() : flatten(aObj);
+      const mapB = typeof bObj === 'undefined' ? new Map() : flatten(bObj);
+      const rawRows = computeDiff(mapA, mapB);
+      const includeTxt = document.getElementById('include').value || '';
+      const excludeTxt = document.getElementById('exclude').value || '';
+      const rows = applyFilters(rawRows, includeTxt, excludeTxt);
+      renderRows(rows);
+    });
+
+    document.getElementById('pretty').addEventListener('click', ()=>{
+      try{
+        const a = document.getElementById('jsonA').value.trim();
+        const b = document.getElementById('jsonB').value.trim();
+        if (a) document.getElementById('jsonA').value = JSON.stringify(JSON.parse(a),null,2);
+        if (b) document.getElementById('jsonB').value = JSON.stringify(JSON.parse(b),null,2);
+      }catch(e){ alert('格式化失败：' + e.message); }
+    });
+
+    document.getElementById('loadExample').addEventListener('click', ()=>{
+      const exA = {
+        users:[{id:1,name:'张三'},{id:2,name:'王五'}],
+        meta:{version:1, active:true},
+        config:{threshold:10}
+      };
+      const exB = {
+        users:[{id:1,name:'李四'},{id:2,name:'王五'},{id:3,name:'赵六'}],
+        meta:{version:2, active:false},
+        config:{threshold:10, mode:'auto'}
+      };
+      document.getElementById('jsonA').value = JSON.stringify(exA,null,2);
+      document.getElementById('jsonB').value = JSON.stringify(exB,null,2);
+    });
+
+    // copy as CSV
+    document.getElementById('copyCsv').addEventListener('click', ()=>{
+      const rows = Array.from(document.querySelectorAll('#diffTable tbody tr'));
+      if (rows.length===0){ alert('没有差异行可复制'); return; }
+      const lines = [['path','a','b','type']];
+      for (const tr of rows){
+        const cols = tr.querySelectorAll('td');
+        const path = cols[0].textContent;
+        const a = cols[1].textContent;
+        const b = cols[2].textContent;
+        const t = cols[3].textContent;
+        // escape for CSV
+        const esc = s => '"' + String(s).replace(/"/g,'""') + '"';
+        lines.push([esc(path), esc(a), esc(b), esc(t)].join(','));
+      }
+      const csv = lines.join('\n');
+      navigator.clipboard.writeText(csv).then(()=>alert('已复制 CSV 到剪贴板'))
+        .catch(()=>alert('复制失败，请手动复制'));
+    });
+
+    // export JSON
+    document.getElementById('downloadJson').addEventListener('click', ()=>{
+      const rows = Array.from(document.querySelectorAll('#diffTable tbody tr'));
+      const items = rows.map(tr=>{
+        const cols = tr.querySelectorAll('td');
+        return {path:cols[0].textContent, a:cols[1].textContent, b:cols[2].textContent, type:cols[3].textContent};
+      });
+      const blob = new Blob([JSON.stringify(items,null,2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'json-diff.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    // small UX: auto-compare when typing stops
+    let timer = null;
+    ['jsonA','jsonB'].forEach(id=>{
+      document.getElementById(id).addEventListener('input', ()=>{
+        clearTimeout(timer); timer = setTimeout(()=>document.getElementById('compare').click(), 900);
+      });
+    });
+  </script>
+</body>
+</html>
+
+
