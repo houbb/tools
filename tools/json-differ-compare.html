@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>JSON 差异比较器 — 字段级（深色）</title>
+
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --muted:#9aa4b2; --accent:#5eead4; --panel:#071022;
+      --ins-bg: rgba(94,234,212,0.12); --del-bg: rgba(255,99,99,0.12);
+      --ins-color: #5eead4; --del-color: #ff6b6b; --info:#7dd3fc;
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#071028 0%, #071122 100%);color:#e6eef6;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+    .wrap{max-width:1180px;margin:28px auto;padding:20px}
+    header{display:flex;gap:16px;align-items:center}
+    header h1{font-size:20px;margin:0}
+    header p{margin:0;color:var(--muted);font-size:13px}
+    .card{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);padding:14px;border-radius:12px;
+          box-shadow:0 6px 20px rgba(2,6,23,0.6)}
+    .editor-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+    textarea{width:100%;min-height:200px;background:transparent;border:1px dashed rgba(255,255,255,0.05);
+             padding:12px;border-radius:8px;color:inherit;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,'Roboto Mono',monospace;font-size:13px}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+    select,input[type=checkbox],input[type=text]{padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);background:transparent;color:inherit}
+    .btn{background:var(--accent);color:#062324;padding:8px 12px;border-radius:10px;border:none;font-weight:600;cursor:pointer}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+    .options {color:var(--muted);font-size:13px;margin-left:6px}
+    #result{margin-top:14px;padding:12px;border-radius:10px;background:var(--panel);min-height:160px}
+    .node{border-radius:8px;padding:8px;margin:6px 0;border:1px solid rgba(255,255,255,0.02);background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent)}
+    .node-header{display:flex;gap:10px;align-items:center;justify-content:space-between}
+    .node-left{display:flex;gap:10px;align-items:center}
+    .badge{font-size:12px;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,0.03);color:var(--muted)}
+    .type-added{background:linear-gradient(90deg,var(--ins-bg), rgba(94,234,212,0.02));color:var(--ins-color);border:1px solid rgba(94,234,212,0.08)}
+    .type-removed{background:linear-gradient(90deg,var(--del-bg), rgba(255,99,99,0.02));color:var(--del-color);border:1px solid rgba(255,99,99,0.08)}
+    .type-modified{background:linear-gradient(90deg, rgba(255,214,77,0.06), rgba(255,214,77,0.01)); color:#ffd166;border:1px solid rgba(255,214,77,0.06)}
+    .value {font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace; font-size:13px; color:#e6eef6;}
+    .value .v-old{background:var(--del-bg);color:var(--del-color);padding:2px 4px;border-radius:4px;text-decoration:line-through}
+    .value .v-new{background:var(--ins-bg);color:var(--ins-color);padding:2px 4px;border-radius:4px}
+    .path {color:var(--muted);font-size:12px}
+    .children {margin-top:10px;padding-left:16px}
+    .controls-small{display:flex;gap:8px;align-items:center}
+    .search{padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);width:260px}
+    .toolbar {display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+    .muted {color:var(--muted);font-size:13px}
+    .toggle-btn{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:6px 8px;border-radius:8px;color:var(--muted);cursor:pointer}
+    .collapsed-note{color:var(--muted);font-size:13px;padding:6px 0}
+    .json-key {color:#9ae6b4}
+    .json-type {font-size:12px;color:var(--muted);margin-left:6px}
+    .panel-row {display:flex;gap:12px}
+    @media (max-width:980px){ .editor-row{grid-template-columns:1fr} .panel-row{flex-direction:column} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header style="display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <h1 style="margin:0">JSON 字段级差异比较器</h1>
+          <!-- <p style="margin:6px 0 0;color:var(--muted)">递归对比对象与数组 — 明确增 / 改 / 删，并列展示旧/新值，默认折叠未改动节点。</p> -->
+        </div>
+        <p>&nbsp;&nbsp;<a href="https://houbb.github.io/" style="color: #7c5cff; text-decoration: none;">&larr; 返回首页</a></p>
+      </div>
+    </header>
+
+    <div class="card" style="margin-top:12px">
+      <div class="editor-row">
+        <div>
+          <label class="small" style="color:var(--muted)">旧 JSON（Old）</label>
+          <textarea id="oldJson" spellcheck="false">{ "id": 1, "name": "Alice", "tags": ["a","b"], "meta": { "age": 30, "city": "Beijing" } }</textarea>
+        </div>
+        <div>
+          <label class="small" style="color:var(--muted)">新 JSON（New）</label>
+          <textarea id="newJson" spellcheck="false">{ "id": 1, "name": "Alice Cooper", "tags": ["a","b","c"], "meta": { "age": 31, "country": "China" }, "active": true }</textarea>
+        </div>
+      </div>
+
+      <div class="controls" style="margin-top:12px">
+        <div class="toolbar">
+          <button class="btn" id="genBtn">生成 JSON Diff</button>
+          <button class="btn ghost" id="expandAll">展开全部</button>
+          <button class="btn ghost" id="collapseAll">折叠未改动</button>
+          <label class="options"><input type="checkbox" id="onlyChanges" /> 仅显示改动</label>
+          <label class="options"><input type="checkbox" id="treatArrayByValue" checked /> 数组按值匹配（相同元素合并）</label>
+        </div>
+
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+          <input id="searchPath" class="search" placeholder="搜索路径或键名（回车搜索）" />
+          <div class="controls-small">
+            <button class="btn ghost" id="copyDiff">复制 diff JSON</button>
+            <button class="btn ghost" id="downloadDiff">下载 diff JSON</button>
+            <button class="btn ghost" id="downloadHtml">下载渲染 HTML</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="result"></div>
+    </div>
+
+    <div style="margin-top:12px;color:var(--muted);font-size:13px" class="muted">
+      说明：比较以字段路径为准，数组会按 index 或按值匹配（可切换）。修改项展示旧值 → 新值；新增 / 删除有颜色区分。
+    </div>
+  </div>
+
+<script>
+/* ---------- JSON diff algorithm (field-level) ----------
+Output node structure:
+{
+  key: string (or index for arrays),
+  path: string (dot/bracket path),
+  type: 'added'|'removed'|'modified'|'unchanged'|'nested',
+  oldValue: any,
+  newValue: any,
+  children: [ ... ] // for nested nodes
+}
+------------------------------------------------------*/
+
+function isObject(v){ return v && typeof v === 'object' && !Array.isArray(v); }
+function isEqual(a,b){
+  // strict equality for primitives; for objects/arrays we'll compare recursively elsewhere
+  return a === b;
+}
+
+// simple "array to map by value" helper (stringify for comparison)
+function arrayToCountMap(arr){
+  const map = new Map();
+  arr.forEach(v=>{
+    const k = JSON.stringify(v);
+    map.set(k, (map.get(k)||0)+1);
+  });
+  return map;
+}
+
+function diffJson(oldNode, newNode, path='', opts={treatArrayByValue:true}) {
+  // returns array of nodes (children)
+  if (isObject(oldNode) && isObject(newNode)) {
+    // object vs object
+    const keys = Array.from(new Set([...Object.keys(oldNode), ...Object.keys(newNode)]));
+    const children = keys.map(key => {
+      const p = path ? (path + '.' + key) : key;
+      if (!(key in oldNode)) {
+        return { key, path:p, type:'added', oldValue: undefined, newValue: newNode[key] };
+      } else if (!(key in newNode)) {
+        return { key, path:p, type:'removed', oldValue: oldNode[key], newValue: undefined };
+      } else {
+        const a = oldNode[key], b = newNode[key];
+        if (isObject(a) && isObject(b)) {
+          const ch = diffJson(a,b,p,opts);
+          const anyChange = ch.some(c=>c.type!=='unchanged');
+          return { key, path:p, type: anyChange ? 'nested' : 'unchanged', children: ch };
+        } else if (Array.isArray(a) && Array.isArray(b)) {
+          const ch = diffArray(a,b,p,opts);
+          const anyChange = ch.some(c=>c.type!=='unchanged');
+          return { key, path:p, type: anyChange ? 'nested' : 'unchanged', children: ch };
+        } else {
+          if (isEqual(a,b)) return { key, path:p, type:'unchanged', oldValue:a, newValue:b };
+          else return { key, path:p, type:'modified', oldValue:a, newValue:b };
+        }
+      }
+    });
+    return children;
+  } else if (Array.isArray(oldNode) && Array.isArray(newNode)) {
+    return diffArray(oldNode, newNode, path, opts);
+  } else {
+    // primitives
+    if (isEqual(oldNode, newNode)) return [{ key: path || '', path, type:'unchanged', oldValue: oldNode, newValue: newNode }];
+    else return [{ key: path || '', path, type:'modified', oldValue: oldNode, newValue: newNode }];
+  }
+}
+
+function diffArray(a,b,path,opts){
+  // two strategies:
+  // - index-based: compare by index
+  // - value-based (if opts.treatArrayByValue): try to match identical items (by JSON.stringify), mark added/removed
+  if (!opts.treatArrayByValue) {
+    // index-based
+    const maxLen = Math.max(a.length, b.length);
+    const children = [];
+    for (let i=0;i<maxLen;i++){
+      const p = path + '['+i+']';
+      if (i >= a.length) children.push({ key: i, path:p, type:'added', oldValue: undefined, newValue: b[i]});
+      else if (i >= b.length) children.push({ key: i, path:p, type:'removed', oldValue: a[i], newValue: undefined});
+      else {
+        const ai = a[i], bi = b[i];
+        if (isObject(ai) && isObject(bi)){
+          const ch = diffJson(ai,bi,p,opts); const any = ch.some(c=>c.type!=='unchanged');
+          children.push({ key:i, path:p, type: any? 'nested':'unchanged', children: ch });
+        } else if (Array.isArray(ai) && Array.isArray(bi)){
+          const ch = diffArray(ai,bi,p,opts); const any = ch.some(c=>c.type!=='unchanged');
+          children.push({ key:i, path:p, type: any? 'nested':'unchanged', children: ch });
+        } else {
+          if (isEqual(ai,bi)) children.push({ key:i, path:p, type:'unchanged', oldValue:ai, newValue:bi});
+          else children.push({ key:i, path:p, type:'modified', oldValue:ai, newValue:bi});
+        }
+      }
+    }
+    return children;
+  } else {
+    // value-based: count occurrences and mark added/removed; for complex items, try to match by JSON.stringify
+    // Also keep untouched items as unchanged entries in order: we'll produce a sequence where unchanged items appear as 'unchanged' with original indices when possible
+    const mapA = arrayToCountMap(a);
+    const mapB = arrayToCountMap(b);
+    const allKeys = new Set([...mapA.keys(), ...mapB.keys()]);
+    const children = [];
+    // For nicer ordering, iterate over b to capture additions in order, but also mark removals.
+    // We'll produce entries like: unchanged (value), added (value), removed (value)
+    // Note: for nested objects/arrays, we still attempt to diff by position matches.
+    // Simpler approach: try to align by equality for primitives; for objects/arrays fallback to index-based diff.
+    const primitiveA = a.every(x=>typeof x!=='object');
+    const primitiveB = b.every(x=>typeof x!=='object');
+    if (primitiveA && primitiveB) {
+      // Use a simple LCS-ish alignment by values to mark unchanged positions
+      // Build arrays of tokens (stringified)
+      const sa = a.map(x=>JSON.stringify(x));
+      const sb = b.map(x=>JSON.stringify(x));
+      // compute LCS dp
+      const n=sa.length,m=sb.length;
+      const dp = Array.from({length:n+1},()=>Array(m+1).fill(0));
+      for (let i=n-1;i>=0;i--){
+        for (let j=m-1;j>=0;j--){
+          if (sa[i]===sb[j]) dp[i][j]=dp[i+1][j+1]+1;
+          else dp[i][j]=Math.max(dp[i+1][j], dp[i][j+1]);
+        }
+      }
+      // reconstruct alignment
+      let i=0,j=0;
+      while(i<n && j<m){
+        if (sa[i]===sb[j]){
+          children.push({ key: i, path: path + '['+children.length+']', type:'unchanged', oldValue: a[i], newValue: b[j]});
+          i++; j++;
+        } else if (dp[i+1][j] >= dp[i][j+1]){
+          children.push({ key: i, path: path + '[removed:'+i+']', type:'removed', oldValue: a[i], newValue: undefined});
+          i++;
+        } else {
+          children.push({ key: j, path: path + '[added:'+j+']', type:'added', oldValue: undefined, newValue: b[j]});
+          j++;
+        }
+      }
+      while(i<n){ children.push({ key:i, path:path+'[removed:'+i+']', type:'removed', oldValue:a[i], newValue:undefined}); i++; }
+      while(j<m){ children.push({ key:j, path:path+'[added:'+j+']', type:'added', oldValue:undefined, newValue:b[j]}); j++; }
+      return children;
+    } else {
+      // fallback: index-based with nested diff for objects/arrays
+      return diffArray(a,b,path, Object.assign({}, {treatArrayByValue:false}, {treatArrayByValue:false}));
+    }
+  }
+}
+
+/* ---------- Rendering ---------- */
+
+function mkBadge(text, cls){
+  const span = document.createElement('span');
+  span.textContent = text;
+  span.className = 'badge ' + cls;
+  return span;
+}
+
+function renderValuePreview(v){
+  if (v === undefined) return '<span class="muted">—</span>';
+  if (v === null) return '<span class="value">null</span>';
+  if (typeof v === 'object') return '<span class="value">'+escapeHtml(JSON.stringify(v))+'</span>';
+  if (typeof v === 'string') return '<span class="value">"' + escapeHtml(v) + '"</span>';
+  return '<span class="value">'+String(v)+'</span>';
+}
+
+function escapeHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// render node tree to DOM
+function renderNodes(nodes, container, opts={onlyChanges:false, search:null}) {
+  container.innerHTML = '';
+  nodes.forEach(n => {
+    // filter by onlyChanges / search
+    if (opts.onlyChanges && isNodeUnchangedRecursive(n)) return;
+    if (opts.search && !nodeMatchesSearch(n, opts.search)) return;
+    const el = renderNode(n, opts);
+    container.appendChild(el);
+  });
+}
+
+function nodeMatchesSearch(node, q){
+  if (!q) return true;
+  q = q.toLowerCase();
+  if ((node.path && node.path.toLowerCase().includes(q)) ||
+      (typeof node.key === 'string' && node.key.toLowerCase().includes(q))) return true;
+  // check values
+  try {
+    if (node.oldValue !== undefined && JSON.stringify(node.oldValue).toLowerCase().includes(q)) return true;
+  } catch(e){}
+  try {
+    if (node.newValue !== undefined && JSON.stringify(node.newValue).toLowerCase().includes(q)) return true;
+  } catch(e){}
+  if (node.children) {
+    return node.children.some(ch => nodeMatchesSearch(ch,q));
+  }
+  return false;
+}
+
+function isNodeUnchangedRecursive(node){
+  if (!node) return true;
+  if (node.type && node.type !== 'unchanged' && node.type !== 'nested') return false;
+  if (node.children && node.children.length){
+    return node.children.every(isNodeUnchangedRecursive);
+  }
+  return true;
+}
+
+function renderNode(node, opts){
+  const wrap = document.createElement('div');
+  wrap.className = 'node';
+  const header = document.createElement('div'); header.className = 'node-header';
+
+  const left = document.createElement('div'); left.className = 'node-left';
+  const keySpan = document.createElement('div');
+  keySpan.innerHTML = `<div style="display:flex;flex-direction:column"><div><strong class="json-key">${escapeHtml(String(node.key))}</strong><span class="json-type"> ${node.path?escapeHtml(node.path):''}</span></div></div>`;
+  left.appendChild(keySpan);
+
+  const right = document.createElement('div');
+
+  // badge
+  const badge = document.createElement('span');
+  badge.className = 'badge';
+  if (node.type === 'added') { badge.textContent = 'added'; badge.classList.add('type-added'); }
+  else if (node.type === 'removed') { badge.textContent = 'removed'; badge.classList.add('type-removed'); }
+  else if (node.type === 'modified') { badge.textContent = 'modified'; badge.classList.add('type-modified'); }
+  else if (node.type === 'nested') { badge.textContent = 'nested'; }
+  else { badge.textContent = 'unchanged'; }
+  right.appendChild(badge);
+
+  header.appendChild(left);
+  header.appendChild(right);
+  wrap.appendChild(header);
+
+  // body: show values for modified/added/removed or nested children
+  if (node.type === 'modified') {
+    const vwrap = document.createElement('div'); vwrap.className='value';
+    vwrap.innerHTML = `<div style="display:flex;gap:12px;margin-top:8px"><div style="flex:1"><div class="muted">旧值</div><div class="v-old">${escapeHtml(pretty(node.oldValue))}</div></div><div style="flex:1"><div class="muted">新值</div><div class="v-new">${escapeHtml(pretty(node.newValue))}</div></div></div>`;
+    wrap.appendChild(vwrap);
+  } else if (node.type === 'added') {
+    const v = document.createElement('div'); v.className='value';
+    v.innerHTML = `<div style="margin-top:8px"><div class="muted">新值</div><div class="v-new">${escapeHtml(pretty(node.newValue))}</div></div>`;
+    wrap.appendChild(v);
+  } else if (node.type === 'removed') {
+    const v = document.createElement('div'); v.className='value';
+    v.innerHTML = `<div style="margin-top:8px"><div class="muted">旧值</div><div class="v-old">${escapeHtml(pretty(node.oldValue))}</div></div>`;
+    wrap.appendChild(v);
+  } else if (node.type === 'unchanged') {
+    const v = document.createElement('div'); v.className='value';
+    v.innerHTML = `<div style="margin-top:6px" class="muted">未改变 — ${pretty(node.oldValue)}</div>`;
+    wrap.appendChild(v);
+    // allow collapsing: show small collapsed note
+  } else if (node.type === 'nested') {
+    const btnRow = document.createElement('div'); btnRow.style.display='flex'; btnRow.style.justifyContent='space-between'; btnRow.style.alignItems='center';
+    const leftInfo = document.createElement('div'); leftInfo.className='muted'; leftInfo.textContent = `子字段：${node.children.length}`;
+    const toggle = document.createElement('button'); toggle.className='toggle-btn'; toggle.textContent='展开';
+    btnRow.appendChild(leftInfo); btnRow.appendChild(toggle);
+    wrap.appendChild(btnRow);
+
+    const childContainer = document.createElement('div'); childContainer.className='children';
+    childContainer.style.display = 'none';
+    node.children.forEach(ch => {
+      const childEl = renderNode(ch, opts);
+      childContainer.appendChild(childEl);
+    });
+    toggle.addEventListener('click', ()=>{
+      if (childContainer.style.display === 'none'){ childContainer.style.display = ''; toggle.textContent='收起'; }
+      else { childContainer.style.display = 'none'; toggle.textContent='展开'; }
+    });
+
+    // by default: if onlyChanges option is on, expand; else collapse unchanged subtrees
+    if (opts.onlyChanges) { childContainer.style.display=''; toggle.textContent='收起'; }
+    wrap.appendChild(childContainer);
+  }
+
+  // hide unchanged nodes visually if onlyChanges true
+  if (opts.onlyChanges && isNodeUnchangedRecursive(node)) {
+    wrap.style.display = 'none';
+  }
+
+  return wrap;
+}
+
+// pretty print minor values
+function pretty(v){
+  if (v === undefined) return '—';
+  if (v === null) return 'null';
+  if (typeof v === 'string') return `"${v}"`;
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
+
+/* ---------- Wiring UI ---------- */
+
+const genBtn = document.getElementById('genBtn');
+const resultEl = document.getElementById('result');
+const onlyChangesEl = document.getElementById('onlyChanges');
+const treatArrayByValueEl = document.getElementById('treatArrayByValue');
+const searchEl = document.getElementById('searchPath');
+
+let lastDiffTree = null;
+
+function generateAndRender(){
+  const oldText = document.getElementById('oldJson').value;
+  const newText = document.getElementById('newJson').value;
+  let oldObj, newObj;
+  try { oldObj = JSON.parse(oldText); }
+  catch(e){ alert('旧 JSON 解析失败：' + e.message); return; }
+  try { newObj = JSON.parse(newText); }
+  catch(e){ alert('新 JSON 解析失败：' + e.message); return; }
+
+  const opts = { treatArrayByValue: treatArrayByValueEl.checked };
+  // root-level diff: produce list of top-level nodes
+  const nodes = diffJson(oldObj, newObj, '', opts);
+  lastDiffTree = nodes;
+  renderNodes(nodes, resultEl, { onlyChanges: onlyChangesEl.checked, search: searchEl.value.trim() || null });
+}
+
+// event handlers
+genBtn.addEventListener('click', generateAndRender);
+onlyChangesEl.addEventListener('change', ()=>{ if (lastDiffTree) renderNodes(lastDiffTree, resultEl, { onlyChanges: onlyChangesEl.checked, search: searchEl.value.trim() || null }); });
+treatArrayByValueEl.addEventListener('change', ()=>generateAndRender());
+
+document.getElementById('expandAll').addEventListener('click', ()=>{
+  // expand all toggles by simulating clicks
+  resultEl.querySelectorAll('.toggle-btn').forEach(b => { if (b.textContent === '展开') b.click(); });
+});
+document.getElementById('collapseAll').addEventListener('click', ()=>{
+  resultEl.querySelectorAll('.toggle-btn').forEach(b => { if (b.textContent === '收起') b.click(); });
+});
+
+document.getElementById('copyDiff').addEventListener('click', ()=>{
+  if (!lastDiffTree) { alert('请先生成 diff'); return; }
+  const txt = JSON.stringify(lastDiffTree, null, 2);
+  navigator.clipboard.writeText(txt).then(()=>alert('diff JSON 已复制到剪贴板')).catch(e=>alert('复制失败: '+e));
+});
+
+document.getElementById('downloadDiff').addEventListener('click', ()=>{
+  if (!lastDiffTree) { alert('请先生成 diff'); return; }
+  const blob = new Blob([JSON.stringify(lastDiffTree, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='json-diff.json'; a.click(); URL.revokeObjectURL(url);
+});
+
+document.getElementById('downloadHtml').addEventListener('click', ()=>{
+  const html = `<!doctype html><html><head><meta charset='utf-8'><title>JSON diff export</title></head><body style="background:#fff;color:#000">${resultEl.innerHTML}</body></html>`;
+  const blob = new Blob([html], {type:'text/html'}); const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='json-diff.html'; a.click(); URL.revokeObjectURL(url);
+});
+
+searchEl.addEventListener('keydown', (e)=>{
+  if (e.key === 'Enter') {
+    if (!lastDiffTree) generateAndRender();
+    else renderNodes(lastDiffTree, resultEl, { onlyChanges: onlyChangesEl.checked, search: searchEl.value.trim() || null });
+  }
+});
+
+// initial
+generateAndRender();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>文本差异比较（jsdiff + diff2html ) </title>
+
+  <!-- diff2html 样式 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css">
+
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --muted:#9aa4b2; --accent:#5eead4; --panel:#071022;
+      --ins-bg: rgba(94,234,212,0.12);
+      --del-bg: rgba(255,99,99,0.12);
+      --ins-color: #5eead4;
+      --del-color: #ff6b6b;
+    }
+    html,body{
+      height:100%;margin:0;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial;
+      background:linear-gradient(180deg,#071028 0%, #071122 100%);
+      color:#e6eef6;
+    }
+
+    .wrap{max-width:1180px;margin:28px auto;padding:20px}
+    header{display:flex;gap:16px;align-items:center}
+    header h1{font-size:20px;margin:0}
+    header p{margin:0;color:var(--muted);font-size:13px}
+
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:18px;margin-top:18px}
+    .card{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);
+          padding:14px;border-radius:12px;box-shadow:0 6px 20px rgba(2,6,23,0.6)}
+    textarea{width:100%;min-height:200px;background:transparent;
+             border:1px dashed rgba(255,255,255,0.05);padding:12px;border-radius:8px;
+             color:inherit;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,'Roboto Mono',monospace;font-size:13px}
+    .two-texts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    label.small{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    .controls{display:flex;flex-direction:column;gap:10px}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    select,input[type=number]{padding:8px;border-radius:8px;
+        border:1px solid rgba(255,255,255,0.05);background:transparent;color:inherit}
+    .btn{background:var(--accent);color:#062324;padding:10px 12px;border-radius:10px;
+         border:none;font-weight:600;cursor:pointer}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+    .actions{display:flex;gap:8px;flex-wrap:wrap}
+    #diffOutput{margin-top:18px;background:var(--panel);border-radius:10px;padding:14px}
+    footer{margin-top:18px;color:var(--muted);font-size:13px}
+    @media (max-width:980px){.grid{grid-template-columns:1fr;}.two-texts{grid-template-columns:1fr}}
+
+    /* override diff2html elements to fit dark theme and avoid white "Files changed" block */
+   .d2h-wrapper, .d2h-file-header, .d2h-info,
+	  .d2h-file-list-title, .d2h-file-list-line {
+		background:#fff !important;
+		color:#333 !important;
+		border-color:#eee !important;
+	  }
+
+    /* Custom char-diff styles */
+    .char-diff-wrapper {
+      display:flex;
+      gap:12px;
+      align-items:flex-start;
+      margin-top:6px;
+    }
+    .char-panel {
+      flex:1;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.03);
+      padding:12px;
+      border-radius:8px;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.5);
+      overflow:auto;
+      max-height:520px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace;
+      font-size:13px;
+      white-space:pre-wrap;
+      word-break:break-word;
+    }
+    .char-panel h4 {
+      margin:0 0 8px 0;
+      font-size:13px;
+      color:var(--muted);
+    }
+    .ch-ins {
+      background: var(--ins-bg);
+      color:var(--ins-color);
+      padding:0 3px;
+      border-radius:4px;
+    }
+    .ch-del {
+      background: var(--del-bg);
+      color:var(--del-color);
+      padding:0 3px;
+      border-radius:4px;
+      text-decoration:line-through;
+    }
+    .ch-eq {
+      color: #e6eef6;
+    }
+
+    /* smaller helpers for inline separators */
+    .char-sep { display:block;height:8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>文本差异比较器</h1>
+        <p>支持 <strong>line</strong> / <strong>word</strong>（diff2html）和 <strong>char</strong>（自定义渲染）</p>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <div class="two-texts">
+          <div>
+            <label class="small">原文（左）</label>
+            <textarea id="oldText">hello worldxxx
+this is a second line
+and a third one</textarea>
+          </div>
+          <div>
+            <label class="small">新文（右）</label>
+            <textarea id="newText">hello worldyyyyxxxx
+this is a second line changed
+and a third one</textarea>
+          </div>
+        </div>
+
+        <div class="controls" style="margin-top:12px">
+          <div class="row">
+            <label class="small" style="min-width:110px">差异类型</label>
+            <select id="diffType">
+              <option value="line">按行</option>
+              <option value="word">按词</option>
+              <option value="char" selected>按字符</option>
+            </select>
+
+            <label class="small" style="margin-left:12px">输出格式</label>
+            <select id="outputFormat">
+              <option value="side-by-side">并排（diff2html）</option>
+              <option value="line-by-line">单栏（diff2html）</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <label class="small" style="min-width:110px">上下文行数</label>
+            <input type="number" id="contextLines" value="3" min="0" style="width:84px">
+            <label class="small" style="margin-left:12px">matching</label>
+            <select id="matching">
+              <option value="lines">lines</option>
+              <option value="words">words</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <label class="small" style="min-width:110px">显示文件列表</label>
+            <input type="checkbox" id="drawFileList" checked>
+            <label class="small" style="margin-left:12px">同步滚动</label>
+            <input type="checkbox" id="synchronisedScroll" checked>
+            <label class="small" style="margin-left:12px">高亮</label>
+            <input type="checkbox" id="highlight" checked>
+          </div>
+
+          <div class="actions">
+            <button class="btn" id="genBtn">生成对比</button>
+            <button class="btn ghost" id="swapBtn">交换左右</button>
+            <button class="btn ghost" id="clearBtn">清空</button>
+          </div>
+        </div>
+
+        <div id="diffOutput"></div>
+
+        <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn ghost" id="copyHtml">复制 HTML</button>
+          <button class="btn" id="downloadHtml">下载 HTML</button>
+        </div>
+      </div>
+
+      <aside class="card">
+        <h3 style="margin-top:0">说明 & 常用选项</h3>
+        <ul style="color:var(--muted);line-height:1.6;font-size:14px">
+          <li><strong>line / word</strong> 使用 diff2html 渲染（保留原样式）。</li>
+          <li><strong>char</strong> 使用内置行内字符高亮，左右并列展示旧/新文本，换行保持原状。</li>
+          <li>可调上下文、matching、并排/单栏（仅对 diff2html 模式生效）。</li>
+        </ul>
+      </aside>
+    </div>
+
+    <footer>Tips: 页面支持复制并导出为 HTML。</footer>
+  </div>
+
+  <!-- libs -->
+  <script src="https://cdn.jsdelivr.net/npm/diff@5.2.0/dist/diff.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html.min.js"></script>
+
+  <script>
+    const oldTextEl = document.getElementById('oldText');
+    const newTextEl = document.getElementById('newText');
+    const diffOutput = document.getElementById('diffOutput');
+
+    // escape HTML
+    function esc(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    // 根据 diffChars 渲染成左右两个面板，行内高亮（更接近 word 效果，但粒度是字符）
+    function renderCharSideBySide(oldStr, newStr) {
+      const parts = Diff.diffChars(oldStr, newStr);
+
+      let left = '';
+      let right = '';
+
+      parts.forEach(p => {
+        const v = esc(p.value);
+        if (p.added) {
+          // added: show in right only
+          right += `<span class="ch-ins">${v}</span>`;
+        } else if (p.removed) {
+          // removed: show in left only
+          left += `<span class="ch-del">${v}</span>`;
+        } else {
+          // common: show in both
+          left += `<span class="ch-eq">${v}</span>`;
+          right += `<span class="ch-eq">${v}</span>`;
+        }
+      });
+
+      // preserve real newlines (<br>) so lines align visually; panels are pre-wrap so it's ok
+      left = left.replace(/\\n/g, '<br>');
+      right = right.replace(/\\n/g, '<br>');
+
+      // wrap panels with headers
+      const html = `
+        <div class="char-diff-wrapper">
+          <div class="char-panel" aria-label="old">
+            <h4>旧文本（删除高亮）</h4>
+            <div>${left}</div>
+          </div>
+          <div class="char-panel" aria-label="new">
+            <h4>新文本（新增高亮）</h4>
+            <div>${right}</div>
+          </div>
+        </div>
+      `;
+      return html;
+    }
+
+    // 旧的 buildPatch / diff2html 渲染（用于 line/word）
+    function buildPatchForDiff2html(oldStr, newStr, mode, context) {
+      if (mode === 'word') {
+        return Diff.createTwoFilesPatch('old.txt', 'new.txt', oldStr, newStr, 'old', 'new', { context });
+      } else {
+        return Diff.createPatch('file.txt', oldStr, newStr, 'old', 'new', { context });
+      }
+    }
+
+    function generate() {
+      const oldStr = oldTextEl.value;
+      const newStr = newTextEl.value;
+      const mode = document.getElementById('diffType').value;
+      const outputFormat = document.getElementById('outputFormat').value;
+      const context = Number(document.getElementById('contextLines').value) || 3;
+      const matching = document.getElementById('matching').value;
+      const drawFileList = document.getElementById('drawFileList').checked;
+      const synchronisedScroll = document.getElementById('synchronisedScroll').checked;
+      const highlight = document.getElementById('highlight').checked;
+
+      diffOutput.innerHTML = '';
+
+      if (mode === 'char') {
+        // 自定义渲染：左右并列，字符级高亮，保留换行
+        diffOutput.innerHTML = renderCharSideBySide(oldStr, newStr);
+      } else {
+        // 使用 diff2html 渲染 line/word
+        const unified = buildPatchForDiff2html(oldStr, newStr, mode, context);
+        const options = {
+          drawFileList,
+          matching,
+          outputFormat,
+          synchronisedScroll,
+          highlight,
+          context
+        };
+        diffOutput.innerHTML = Diff2Html.html(unified, options);
+      }
+    }
+
+    document.getElementById('genBtn').addEventListener('click', generate);
+    document.getElementById('swapBtn').addEventListener('click', () => {
+      const tmp = oldTextEl.value; oldTextEl.value = newTextEl.value; newTextEl.value = tmp;
+      generate();
+    });
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      oldTextEl.value = ''; newTextEl.value = ''; diffOutput.innerHTML = '';
+    });
+
+    document.getElementById('copyHtml').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(diffOutput.innerHTML);
+        alert('已复制渲染后的 HTML 代码。');
+      } catch (e) {
+        alert('复制失败：' + e);
+      }
+    });
+
+    document.getElementById('downloadHtml').addEventListener('click', () => {
+      const pageHtml = `<!doctype html><html><head><meta charset='utf-8'><link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css'></head><body style="background:#fff;color:#000">${diffOutput.innerHTML}</body></html>`;
+      const blob = new Blob([pageHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'diff-result.html'; a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // 初次渲染
+    generate();
+  </script>
+</body>
+</html>
