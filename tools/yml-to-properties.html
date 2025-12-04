@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>YAML → Properties 转换器</title>
+<style>
+:root{--bg:#0f1724;--card:#0b1220;--muted:#99a1b3;--accent:#4f46e5}
+html,body{height:100%;margin:0;font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial}
+body{background:linear-gradient(180deg,#071025 0%, #07152a 100%);color:#e6eef8;display:flex;align-items:center;justify-content:center;padding:32px}
+.wrap{width:100%;max-width:1100px}
+header{display:flex;align-items:center;gap:16px;margin-bottom:18px}
+header h1{font-size:20px;margin:0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+textarea{width:100%;height:420px;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:inherit;resize:vertical;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;font-size:13px}
+.panel{background:var(--card);border-radius:12px;padding:12px;border:1px solid rgba(255,255,255,0.03)}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+button{background:var(--accent);border:0;color:white;padding:8px 12px;border-radius:8px;cursor:pointer}
+button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+label{color:var(--muted);font-size:13px}
+.small{font-size:13px;color:var(--muted)}
+.row{display:flex;gap:8px;align-items:center}
+.footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px;color:var(--muted);font-size:13px}
+.badge{background:rgba(255,255,255,0.04);padding:6px 8px;border-radius:999px;font-size:12px}
+pre{white-space:pre-wrap;margin:0;padding:12px;height:420px;overflow:auto;border-radius:8px;background:rgba(0,0,0,0.3)}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<h1>YAML → Properties 转换器</h1>
+<div class="small">将 YAML 转换为 Java .properties 格式（支持嵌套、数组、注释保留）</div>
+</header>
+
+<div class="grid">
+<div class="panel">
+<div class="controls">
+<button id="convertBtn">转换 ▶</button>
+<button id="clearBtn" class="ghost">清空</button>
+<button id="sampleBtn" class="ghost">示例载入</button>
+<div style="flex:1"></div>
+<label class="small"><input type="checkbox" id="preserveComments" checked /> 保留注释</label>
+</div>
+
+<label class="small">输入 YAML</label>
+<textarea id="yamlInput" placeholder="# 在这里粘贴 YAML"></textarea>
+
+<div class="footer">
+<div class="badge">支持：嵌套对象自动扁平化 / 数组 key.n / 注释</div>
+<div class="small">生成后可以复制或下载 .properties</div>
+</div>
+</div>
+
+<div class="panel">
+<div class="row" style="justify-content:space-between;margin-bottom:8px">
+<label class="small">输出 .properties</label>
+<div style="display:flex;gap:8px">
+<button id="copyBtn" class="ghost">复制</button>
+<button id="downloadBtn">下载 .properties</button>
+</div>
+</div>
+<pre id="propsOut" aria-live="polite"># 还没有生成 properties
+</pre>
+</div>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4/dist/js-yaml.min.js"></script>
+<script>
+// Utilities
+function flattenObject(obj, prefix='', res={}, commentMap={}, preserveComments=true){
+  for(const k in obj){
+    if(!obj.hasOwnProperty(k)) continue;
+    const v = obj[k];
+    const key = prefix ? prefix+'.'+k : k;
+
+    if(preserveComments && v && typeof v==='object' && v.__comment){
+      commentMap[key] = v.__comment;
+    }
+
+    if(typeof v === 'object' && v !== null && !Array.isArray(v)){
+      flattenObject(v, key, res, commentMap, preserveComments);
+    } else if(Array.isArray(v)){
+      for(let i=0;i<v.length;i++){
+        const val = v[i];
+        if(typeof val === 'object' && val !== null){
+          flattenObject(val, key+'.'+i, res, commentMap, preserveComments);
+        } else {
+          res[key+'.'+i] = val;
+        }
+      }
+    } else {
+      res[key] = v;
+    }
+  }
+  return res;
+}
+
+// Wire UI
+const input = document.getElementById('yamlInput');
+const out = document.getElementById('propsOut');
+const convertBtn = document.getElementById('convertBtn');
+const copyBtn = document.getElementById('copyBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const clearBtn = document.getElementById('clearBtn');
+const sampleBtn = document.getElementById('sampleBtn');
+const preserveComments = document.getElementById('preserveComments');
+
+convertBtn.addEventListener('click', ()=>{
+  let yamlText = input.value || '';
+  let opts = {preserveComments: preserveComments.checked};
+  let data;
+  try{
+    data = jsyaml.load(yamlText);
+  }catch(e){
+    out.textContent = '# YAML 解析错误: '+e.message;
+    return;
+  }
+  if(typeof data!=='object' || data===null){
+    out.textContent = '# YAML 内容为空或格式不正确';
+    return;
+  }
+  let commentMap = {};
+  let flat = flattenObject(data,'',{},commentMap,opts.preserveComments);
+  let lines = [];
+  for(const k of Object.keys(flat)){
+    if(opts.preserveComments && commentMap[k]){
+      lines.push(commentMap[k]);
+    }
+    lines.push(`${k}=${flat[k]}`);
+  }
+  out.textContent = lines.join('\n');
+});
+
+copyBtn.addEventListener('click', async ()=>{
+  try{
+    await navigator.clipboard.writeText(out.textContent);
+    copyBtn.textContent = '已复制';
+    setTimeout(()=>copyBtn.textContent='复制',1200);
+  }catch(e){
+    alert('复制失败：'+e);
+  }
+});
+
+downloadBtn.addEventListener('click', ()=>{
+  const blob = new Blob([out.textContent], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'converted.properties'; document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+});
+
+clearBtn.addEventListener('click', ()=>{ input.value=''; out.textContent = '# 还没有生成 properties'; });
+
+sampleBtn.addEventListener('click', ()=>{
+  input.value = `# 示例 YAML
+server:
+  port: 8080
+database:
+  url: jdbc:mysql://localhost:3306/db
+  user: root
+  pass: pa\\u0073s
+arr:
+  - one
+  - two
+app:
+  features:
+    login: true
+    signup: false
+# 注释会保留
+`;
+});
+
+// Ctrl+Enter 快速转换
+input.addEventListener('keydown', (e)=>{ if(e.ctrlKey && e.key==='Enter') convertBtn.click(); });
+</script>
+</body>
+</html>

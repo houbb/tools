@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Properties → YAML 转换器</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--muted:#99a1b3;--accent:#4f46e5}
+    html,body{height:100%;margin:0;font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial}
+    body{background:linear-gradient(180deg,#071025 0%, #07152a 100%);color:#e6eef8;display:flex;align-items:center;justify-content:center;padding:32px}
+    .wrap{width:100%;max-width:1100px}
+    header{display:flex;align-items:center;gap:16px;margin-bottom:18px}
+    header h1{font-size:20px;margin:0}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    textarea{width:100%;height:420px;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:inherit;resize:vertical;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;font-size:13px}
+    .panel{background:var(--card);border-radius:12px;padding:12px;border:1px solid rgba(255,255,255,0.03)}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+    button{background:var(--accent);border:0;color:white;padding:8px 12px;border-radius:8px;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+    label{color:var(--muted);font-size:13px}
+    .small{font-size:13px;color:var(--muted)}
+    .row{display:flex;gap:8px;align-items:center}
+    .options{display:flex;gap:8px;align-items:center}
+    .footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px;color:var(--muted);font-size:13px}
+    .badge{background:rgba(255,255,255,0.04);padding:6px 8px;border-radius:999px;font-size:12px}
+    pre{white-space:pre-wrap;margin:0;padding:12px;height:420px;overflow:auto;border-radius:8px;background:rgba(0,0,0,0.3)}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Properties → YAML 转换器（单文件）</h1>
+      <div class="small">将 Java .properties 格式转换为 YAML（支持点路径、数组索引、注释保留选项）</div>
+    </header>
+
+    <div class="grid">
+      <div class="panel">
+        <div class="controls">
+          <button id="convertBtn">转换 ▶</button>
+          <button id="clearBtn" class="ghost">清空</button>
+          <button id="sampleBtn" class="ghost">示例载入</button>
+          <div style="flex:1"></div>
+          <div class="options">
+            <label class="small">缩进</label>
+            <select id="indentSelect">
+              <option value="2">2</option>
+              <option value="4" selected>4</option>
+              <option value="8">8</option>
+            </select>
+            <label class="small"><input type="checkbox" id="preserveComments" checked /> 保留注释</label>
+            <label class="small"><input type="checkbox" id="decodeUnicode" checked /> 解码 \uXXXX</label>
+          </div>
+        </div>
+
+        <label class="small">输入 .properties 文本</label>
+        <textarea id="propsInput" placeholder="# 在这里粘贴 properties，例如：\nserver.port=8080\ndb.user=admin\ndb.pass=secret\narr.0=one\narr.1=two"></textarea>
+
+        <div class="footer">
+          <div class="badge">支持：点路径 -> 嵌套对象 / 数组索引（key.0=val）/ 注释</div>
+          <div class="small">生成后可以复制或下载 YAML</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="row" style="justify-content:space-between;margin-bottom:8px">
+          <label class="small">输出 YAML</label>
+          <div style="display:flex;gap:8px">
+            <button id="copyBtn" class="ghost">复制</button>
+            <button id="downloadBtn">下载 .yml</button>
+          </div>
+        </div>
+        <pre id="yamlOut" aria-live="polite"># 还没有生成 YAML
+</pre>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;color:var(--muted);font-size:13px">
+      使用说明：将 properties 粘贴到左侧，支持注释（以 # 或 ! 开头）、以 "key=value" 或 "key: value" 写法。带数字索引的 key.n 会被合并为数组。
+    </div>
+  </div>
+
+  <script>
+    // Utilities
+    function decodeUnicodeEscapes(str){
+      return str.replace(/\\u[0-9a-fA-F]{4}/g, function(m){
+        return String.fromCharCode(parseInt(m.slice(2),16));
+      });
+    }
+
+    function parseProperties(text, opts){
+      const lines = text.split(/\r?\n/);
+      const entries = [];
+      for(let raw of lines){
+        const line = raw.trimLeft();
+        if(line.length===0) { entries.push({type:'empty', raw}); continue; }
+        // Comments start with # or ! (optionally preceded by whitespace)
+        if(/^\s*[#!]/.test(raw)){
+          entries.push({type:'comment', raw});
+          continue;
+        }
+        // key=value or key: value or key value
+        // handle escaped = and : by splitting on first unescaped = or :
+        let key = null, value = null;
+        let match = raw.match(/^([^=:\\s][^=:\\]*?)\s*(?:=|:)\s*(.*)$/);
+        if(match){ key = match[1].trim(); value = match[2]; }
+        else {
+          // fallback split on first = or : if present
+          const idxEq = raw.indexOf('=');
+          const idxCol = raw.indexOf(':');
+          let idx = -1;
+          if(idxEq>=0 && idxCol>=0) idx = Math.min(idxEq, idxCol);
+          else idx = Math.max(idxEq, idxCol);
+          if(idx>=0){ key = raw.slice(0,idx).trim(); value = raw.slice(idx+1).trim(); }
+          else { // space separated
+            const parts = raw.split(/\s+/);
+            key = parts.shift(); value = parts.join(' ');
+          }
+        }
+        if(opts.decodeUnicode) value = decodeUnicodeEscapes(value);
+        entries.push({type:'kv', key, value, raw});
+      }
+      return entries;
+    }
+
+    function setNested(obj, pathParts, val){
+      let cur = obj;
+      for(let i=0;i<pathParts.length;i++){
+        const part = pathParts[i];
+        const nextPart = pathParts[i+1];
+        const isLast = i===pathParts.length-1;
+        // detect array index like '0'
+        if(/^(\d+)$/.test(part)){
+          const idx = Number(part);
+          if(!Array.isArray(cur)) return; // inconsistent
+          if(isLast) cur[idx] = val;
+          else {
+            if(cur[idx]==null){
+              // decide next is object or array
+              cur[idx] = /^(\d+)$/.test(nextPart) ? [] : {};
+            }
+            cur = cur[idx];
+          }
+        } else {
+          // normal key
+          if(isLast){
+            // if existing value is array and key is numeric, merge? simple assign
+            cur[part] = val;
+          } else {
+            // prepare next container
+            if(cur[part]==null){
+              cur[part] = /^(\d+)$/.test(nextPart) ? [] : {};
+            }
+            cur = cur[part];
+          }
+        }
+      }
+    }
+
+    function buildObject(entries, opts){
+	  const root = {};
+	  const commentMap = new Map(); // key -> 注释数组
+	  let pendingComments = [];
+
+	  for(const e of entries){
+		if(e.type==='kv'){
+		  const rawKey = e.key;
+		  // attach pending comments
+		  if(opts.preserveComments && pendingComments.length){
+			commentMap.set(rawKey, pendingComments.map(c=>c.replace(/^[ \t]+/,'')).join('\n'));
+			pendingComments = [];
+		  }
+		  const parts = rawKey.split('.').map(p=>p);
+		  setNested(root, parts, e.value);
+		} else if(e.type==='comment'){
+		  if(opts.preserveComments) pendingComments.push(e.raw);
+		}
+	  }
+	  return {root, commentMap};
+	}
+
+    function needsQuoting(s){
+      if(s===null) return false;
+      if(s==='' ) return true;
+      // numbers, booleans are left unquoted to keep YAML types? To be safe, quote if contains special chars
+      if(/^[0-9]+$/.test(s)) return false;
+      if(/^(true|false|null)$/.test(s)) return false;
+      if(/[:?@`#&*!|>\[\]{},-]/.test(s)) return true;
+      if(/^\s|\s$/.test(s)) return true;
+      return false;
+    }
+
+    // 修改 toYAML，加支持注释
+	function toYAML(node, indent, opts, keyPath=''){
+	  const pad = ' '.repeat(indent);
+	  if(node===null) return 'null';
+	  if(typeof node === 'string'){
+		return needsQuoting(node) ? JSON.stringify(node) : node;
+	  }
+	  if(typeof node === 'number' || typeof node === 'boolean') return String(node);
+	  if(Array.isArray(node)){
+		if(node.length===0) return '[]';
+		const lines = node.map(item=>{
+		  if(typeof item === 'object' && item!==null){
+			const nested = toYAML(item, indent+opts.indent, opts);
+			return pad + '- ' + nested.replace(/^\s+/, '');
+		  } else {
+			const out = toYAML(item, indent+opts.indent, opts);
+			return pad + '- ' + out;
+		  }
+		});
+		return '\n' + lines.join('\n');
+	  }
+	  // object
+	  const keys = Object.keys(node);
+	  if(keys.length===0) return '{}';
+	  const lines = [];
+	  for(const k of keys){
+		const v = node[k];
+		const safeKey = /^[a-zA-Z0-9_:-]+$/.test(k) ? k : JSON.stringify(k);
+		const fullKey = keyPath ? (keyPath + '.' + k) : k;
+
+		// prepend comment if exists
+		if(opts.preserveComments && opts.commentMap && opts.commentMap.has(fullKey)){
+		  lines.push(opts.commentMap.get(fullKey));
+		}
+
+		if(typeof v === 'object' && v!==null){
+		  const nested = toYAML(v, indent+opts.indent, opts, fullKey);
+		  if(nested.startsWith('\n')){
+			lines.push(pad + safeKey + ':' + nested);
+		  } else {
+			lines.push(pad + safeKey + ': ' + nested);
+		  }
+		} else {
+		  const out = toYAML(v, indent+opts.indent, opts, fullKey);
+		  lines.push(pad + safeKey + ': ' + out);
+		}
+	  }
+	  return '\n' + lines.join('\n');
+	}
+
+    // Wire UI
+    const input = document.getElementById('propsInput');
+    const out = document.getElementById('yamlOut');
+    const convertBtn = document.getElementById('convertBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const sampleBtn = document.getElementById('sampleBtn');
+    const indentSelect = document.getElementById('indentSelect');
+    const preserveComments = document.getElementById('preserveComments');
+    const decodeUnicode = document.getElementById('decodeUnicode');
+
+    // 修改 convertBtn 调用：
+	convertBtn.addEventListener('click', ()=>{
+	  const opts = {
+		indent: Number(indentSelect.value),
+		preserveComments: preserveComments.checked,
+		decodeUnicode: decodeUnicode.checked,
+	  };
+	  const entries = parseProperties(input.value || '', opts);
+	  const {root, commentMap} = buildObject(entries, opts);
+	  opts.commentMap = commentMap; // pass comment map
+	  let yaml = toYAML(root, 0, opts);
+	  if(!yaml.trim()) yaml = '# (empty)';
+	  out.textContent = yaml;
+	});
+
+    copyBtn.addEventListener('click', async ()=>{
+      try{
+        await navigator.clipboard.writeText(out.textContent);
+        copyBtn.textContent = '已复制';
+        setTimeout(()=>copyBtn.textContent='复制',1200);
+      }catch(e){
+        alert('复制失败：'+e);
+      }
+    });
+
+    downloadBtn.addEventListener('click', ()=>{
+      const blob = new Blob([out.textContent], {type:'text/yaml;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'converted.yml'; document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    clearBtn.addEventListener('click', ()=>{ input.value=''; out.textContent = '# 还没有生成 YAML'; });
+
+    sampleBtn.addEventListener('click', ()=>{
+      input.value = `# 示例 properties\nserver.port=8080\ndatabase.url=jdbc:mysql://localhost:3306/db\ndatabase.user=root\ndatabase.pass=pa\\u0073s\narr.0=one\narr.1=two\napp.features.login=true\napp.features.signup=false\n# 注释会保留\n`;
+    });
+
+    // allow Ctrl+Enter to convert
+    input.addEventListener('keydown', (e)=>{ if(e.ctrlKey && e.key==='Enter') convertBtn.click(); });
+  </script>
+</body>
+</html>
