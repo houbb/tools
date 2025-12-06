@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>随机中国人名生成器</title>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --muted:#98a0b3; --accent:#7c5cff; --glass: rgba(255,255,255,0.04);
+      --glass-2: rgba(255,255,255,0.02);
+      --radius:14px;
+      color-scheme: dark;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#071226 0%, #0f1724 100%);font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans CJK SC", "PingFang SC", "Microsoft Yahei", sans-serif;color:#e6eef8}
+    .wrap{max-width:1100px;margin:36px auto;padding:28px;border-radius:18px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));box-shadow:0 8px 30px rgba(2,6,23,0.6);}
+    .header{display:flex;align-items:center;gap:16px;margin-bottom:18px}
+    .logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#34b3ff);display:grid;place-items:center;font-weight:700;font-size:20px}
+    h1{margin:0;font-size:20px}
+    p.lead{margin:4px 0 0;color:var(--muted);font-size:13px}
+
+    .grid{display:grid;grid-template-columns:360px 1fr;gap:18px}
+    .panel{background:var(--glass);padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    .row{display:flex;gap:8px;align-items:center}
+    input[type="number"], input[type="text"], textarea, select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:inherit;outline:none}
+    textarea{min-height:90px;resize:vertical}
+    .controls{display:flex;gap:8px;margin-top:10px}
+    button{background:var(--accent);border:none;padding:10px 12px;border-radius:10px;color:white;font-weight:600;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted);font-weight:600}
+    .small{font-size:13px;padding:8px 10px}
+    .result-list{display:flex;flex-direction:column;gap:8px}
+    .item{display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:10px;background:var(--glass-2);border:1px solid rgba(255,255,255,0.02)}
+    .name{font-size:18px;font-weight:700}
+    .actions{display:flex;gap:8px}
+    .muted{color:var(--muted);font-size:13px}
+    .footer{display:flex;justify-content:space-between;align-items:center;margin-top:12px;color:var(--muted);font-size:13px}
+    .hint{font-size:12px;color:var(--muted);margin-top:8px}
+    .chips{display:flex;flex-wrap:wrap;gap:8px}
+    .chip{padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.02);font-size:13px}
+
+    /* responsive */
+    @media (max-width:880px){
+      .grid{grid-template-columns:1fr}
+      .header{flex-direction:column;align-items:flex-start}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div class="logo">名</div>
+      <div>
+        <h1>随机中国人名生成器</h1>
+        <a class="pill" href="https://houbb.github.io/tools/" target="_self">⬅ 返回首页</a>
+        <!-- <p class="lead">随机生成常见中文姓氏 + 1-2个字名。支持限制姓氏/名称字符、复制、导出（TXT/CSV）。</p> -->
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <label>生成数量（默认 10）</label>
+        <input id="count" type="number" min="1" max="1000" value="10" />
+
+        <div style="height:10px"></div>
+
+        <label>限制姓氏（可选）</label>
+        <textarea id="surnameFilter" placeholder="示例: 张,王,李 —— 如果填写，将只从这些姓氏中随机选择"></textarea>
+        <div class="hint">支持用逗号、空格或换行分隔多个姓氏。留空则使用默认姓氏库。</div>
+
+        <div style="height:10px"></div>
+        <label>限制名称字符（可选）</label>
+        <textarea id="nameChars" placeholder="示例: 伟 强 华 明 —— 如果填写，将只从这些字中随机选择名的字符"></textarea>
+        <div class="hint">填写后名字字符只从这里选；留空则使用常用汉字库（常用单字/双字均适用）。</div>
+
+        <div style="height:10px"></div>
+        <label>名字长度</label>
+        <div class="row">
+          <select id="nameLen">
+            <option value="random">随机 1 或 2</option>
+            <option value="1">固定 1 字</option>
+            <option value="2">固定 2 字</option>
+          </select>
+        </div>
+
+        <div class="controls">
+          <button id="generate">生成</button>
+          <button class="ghost small" id="clear">清空</button>
+          <button class="ghost small" id="copyAll">复制全部</button>
+        </div>
+
+        <div style="height:12px"></div>
+        <div class="chips">
+          <div class="chip">支持限制姓氏</div>
+          <div class="chip">支持限制名字符</div>
+          <div class="chip">导出 TXT / CSV</div>
+        </div>
+
+        <div class="footer">
+          <div class="muted">生成器 · 离线运行 · 无需网络</div>
+          <div>
+            <button class="ghost small" id="exportTxt">导出 TXT</button>
+            <button class="ghost small" id="exportCsv">导出 CSV</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div style="display:flex;gap:12px;align-items:center">
+            <div style="font-weight:700;font-size:16px">结果</div>
+            <div id="stats" class="muted">0 个</div>
+          </div>
+          <div class="row">
+            <button class="ghost" id="regen">重新生成</button>
+          </div>
+        </div>
+
+        <div id="results" class="result-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 常见姓氏（百家姓扩展）
+    const surnames = ("赵 钱 孙 李 周 吴 郑 王 冯 陈 褚 卫 蒋 沈 韩 杨 朱 秦 尤 许 何 吕 施 张 孔 曹 严 华 金 魏 陶 姜 戚 谢 邹 喻 柏 水 窦 章 云 苏 潘 葛 奚 范 彭 郎 鲁 韦 昌 马 苗 凤 花 方 俞 任 袁 柳 酆 鲍 史 唐 费 廉 岑 薛 雷 贾 倪 汤 殷 罗 毕 郝 邬 安 常 乐 于 时 傅 皮 卞 齐 康 伍 余 元 卜 顾 孟 平 黄 和 穆 萧 尹 姚 邵 湛 汪 祁 毛 禹 狄 米 贝 明 臧 计 伏 成 戴 谈 宋 茅 庞 熊 纪 舒 屈 项 祝 董 梁 杜 阮 蓝 闵 席 季 麻 强 贾 文 赖 袁 韩")
+      .split(/\s+/).filter(Boolean);
+
+    // 常用给名字的汉字（挑选常见字，适合作为名字）
+    const givenChars = ("伟 勇 军 志 强 平 保 东 文辉 伟明 建 国 成 康 乐 志华 敏 艳 婧 婷 琳 芳 莉 静 英 华 超 峰 峻 俊 涛 飞 明 祥 宇 捷 豪 轩 鑫 霖 佳 彬 念 睿 鑫怡 子 良 梓 豪 睿涵 志远 天佑 曦 泽 翔 弘 博 陌 瀚 梁 烨 翔 昊 卓 寅 楠 湘 熙 颖 欣 瑜 晓 彤 诗 雨 璐 坤 翔 豪 泽 宸 熙 子昂 宏 柯 杰 宇航 羽 俊朗 浩 然 昊天 逸 陈 焱 旭 炎 凯 翎 航 舒 恬 玥 婷 瑶 雯 佳怡 溪 禧" )
+      .split(/\s+/).filter(Boolean);
+
+    // 将textarea内容解析为字符数组（用于名字字符过滤）
+    function parseChars(text){
+      if(!text) return null;
+      // 去除非汉字，保留汉字
+      const chars = [];
+      for(const ch of text.trim()){
+        if(/[\u4e00-\u9fff]/.test(ch)) chars.push(ch);
+      }
+      // 如果用户用空格/逗号输入多个单字，也接受
+      if(chars.length>0) return chars;
+      // fallback: split by whitespace and non-chars
+      const parts = text.split(/[,\s]+/).map(s=>s.trim()).filter(Boolean);
+      if(parts.length>0) return parts.join('').split('');
+      return null;
+    }
+
+    // 读表单
+    const $count = document.getElementById('count');
+    const $surnameFilter = document.getElementById('surnameFilter');
+    const $nameChars = document.getElementById('nameChars');
+    const $nameLen = document.getElementById('nameLen');
+    const $results = document.getElementById('results');
+    const $stats = document.getElementById('stats');
+
+    function pickRandom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+    function buildSurnamePool(){
+      const raw = $surnameFilter.value.trim();
+      if(!raw) return surnames;
+      const parts = raw.split(/[\s,，;；\n]+/).map(s=>s.trim()).filter(Boolean);
+      // keep only single-character surnames or multi-character allowed
+      const pool = [];
+      for(const p of parts){
+        // if p contains Chinese chars, add as is
+        if(/[\u4e00-\u9fff]+/.test(p)) pool.push(p);
+        else if(p.length>0) pool.push(p);
+      }
+      return pool.length?pool:surnames;
+    }
+
+    function buildNameCharPool(){
+      const parsed = parseChars($nameChars.value);
+      if(parsed && parsed.length>0) return parsed;
+      return givenChars;
+    }
+
+    function makeName(surnamePool, namePool, lenMode){
+      const surname = pickRandom(surnamePool);
+      let nameLen;
+      if(lenMode==='random') nameLen = Math.random()<0.5?1:2;
+      else nameLen = Number(lenMode);
+      let name = '';
+      for(let i=0;i<nameLen;i++){
+        name += pickRandom(namePool);
+      }
+      return surname + name;
+    }
+
+    function renderList(list){
+      $results.innerHTML = '';
+      if(!list || list.length===0){
+        $stats.textContent = '0 个';
+        $results.innerHTML = '<div class="muted">暂无结果。请设置参数并点击 “生成”。</div>';
+        return;
+      }
+      $stats.textContent = list.length + ' 个';
+      for(const name of list){
+        const item = document.createElement('div'); item.className='item';
+        const left = document.createElement('div'); left.style.display='flex'; left.style.alignItems='center'; left.style.gap='12px';
+        const n = document.createElement('div'); n.className='name'; n.textContent = name;
+        const info = document.createElement('div'); info.className='muted'; info.textContent='生成';
+        left.appendChild(n); left.appendChild(info);
+
+        const actions = document.createElement('div'); actions.className='actions';
+        const copyBtn = document.createElement('button'); copyBtn.className='ghost small'; copyBtn.textContent='复制';
+        copyBtn.onclick = async ()=>{ await navigator.clipboard.writeText(name); copyBtn.textContent='已复制'; setTimeout(()=>copyBtn.textContent='复制',1200); };
+        actions.appendChild(copyBtn);
+
+        item.appendChild(left);
+        item.appendChild(actions);
+        $results.appendChild(item);
+      }
+    }
+
+    // 主生成函数
+    function generate(){
+      const cnt = Math.min(1000, Math.max(1, Number($count.value) || 10));
+      const surnamePool = buildSurnamePool();
+      const namePool = buildNameCharPool();
+      const lenMode = $nameLen.value;
+      const set = new Set();
+      let attempts = 0;
+      while(set.size < cnt && attempts < cnt * 10){
+        set.add(makeName(surnamePool, namePool, lenMode));
+        attempts++;
+      }
+      const arr = Array.from(set);
+      renderList(arr);
+      // store last results for export
+      window._lastNames = arr;
+    }
+
+    // 清空
+    document.getElementById('clear').addEventListener('click', ()=>{
+      $results.innerHTML = '';
+      $stats.textContent='0 个';
+      window._lastNames = [];
+    });
+
+    document.getElementById('generate').addEventListener('click', ()=>{ generate(); });
+    document.getElementById('regen').addEventListener('click', ()=>{ generate(); });
+
+    document.getElementById('copyAll').addEventListener('click', async ()=>{
+      const arr = window._lastNames || [];
+      if(!arr || arr.length===0){ alert('暂无内容可复制'); return; }
+      const txt = arr.join('\n');
+      await navigator.clipboard.writeText(txt);
+      alert('已复制到剪贴板：' + arr.length + ' 个名字');
+    });
+
+    function download(filename, content){
+      const blob = new Blob([content], {type:'text/plain;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    }
+
+    document.getElementById('exportTxt').addEventListener('click', ()=>{
+      const arr = window._lastNames || [];
+      if(!arr || arr.length===0){ alert('暂无内容可导出，请先生成'); return; }
+      download('names.txt', arr.join('\n'));
+    });
+
+    document.getElementById('exportCsv').addEventListener('click', ()=>{
+      const arr = window._lastNames || [];
+      if(!arr || arr.length===0){ alert('暂无内容可导出，请先生成'); return; }
+      // CSV 第一列 姓名
+      const lines = ['姓名'];
+      for(const n of arr) lines.push(n);
+      download('names.csv', lines.join('\n'));
+    });
+
+    // 初始化
+    window._lastNames = [];
+    // 自动生成初始 10 个
+    generate();
+  </script>
+</body>
+</html>
