@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Markdown → PDF 导出器</title>
+  <meta name="description" content="现代、好看且交互友好的 Markdown 编辑器，实时预览并一键导出 PDF。" />
+
+  <!-- Tailwind CDN for quick modern styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <!-- Marked (Markdown -> HTML) -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- highlight.js for code highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+  <!-- html2pdf (html -> PDF) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
+
+  <style>
+    :root{ --bg:#0f172a; --card:#0b1220; --muted:#94a3b8 }
+    html,body{ height:100%; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+    /* Editor & preview feel */
+    .editor, .preview{ min-height:280px; }
+    .resizer{ width:6px; cursor:col-resize; background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)); }
+    /* PDF page style for preview area (A4-like) */
+    .pdf-page{ background:white; border-radius:8px; box-shadow:0 6px 30px rgba(2,6,23,0.6); padding:36px; max-width:794px; margin:16px auto; }
+    .hljs{ padding:12px; border-radius:6px; }
+    /* Smooth transitions */
+    .btn{ transition:transform .08s cubic-bezier(.2,.9,.3,1), box-shadow .08s; }
+    .btn:active{ transform:translateY(1px); }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+  <div class="max-w-7xl mx-auto p-6">
+    <header class="flex items-center justify-between mb-6 gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold">Markdown → PDF 导出器</h1>
+        <a class="pill" href="https://houbb.github.io/tools/" target="_self">⬅ 返回首页</a>
+        <p class="text-sm text-slate-500">实时预览 · 主题切换 · 页面格式化 · 一键导出高质量 PDF</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <label class="text-sm text-slate-600 mr-2">页面宽度</label>
+        <select id="pageSize" class="border rounded px-2 py-1 text-sm">
+          <option value="a4">A4 (纵向)</option>
+          <option value="a4-landscape">A4 (横向)</option>
+          <option value="letter">Letter</option>
+        </select>
+        <button id="downloadBtn" class="btn ml-3 bg-slate-800 text-white px-3 py-2 rounded shadow">导出 PDF</button>
+      </div>
+    </header>
+
+    <main class="grid grid-cols-12 gap-4">
+      <!-- Left column: tools + editor -->
+      <section class="col-span-12 lg:col-span-5">
+        <div class="bg-white rounded-lg shadow p-4">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <button class="btn tool px-2 py-1 rounded border text-sm" data-insert="# ">H1</button>
+              <button class="btn tool px-2 py-1 rounded border text-sm" data-insert="## ">H2</button>
+              <button class="btn tool px-2 py-1 rounded border text-sm" data-insert="**bold**">Bold</button>
+              <button class="btn tool px-2 py-1 rounded border text-sm" data-insert="*italic*">Italic</button>
+              <button class="btn tool px-2 py-1 rounded border text-sm" data-insert="\n\n- ">List</button>
+            </div>
+            <div class="text-sm text-slate-500">快捷键: <kbd class="border rounded px-1">Ctrl/Cmd</kbd> + <kbd class="border rounded px-1">B</kbd> (粗体)</div>
+          </div>
+
+          <textarea id="editor" class="w-full h-80 border rounded p-3 font-mono text-sm editor" spellcheck="false"># 示例文档
+
+这是一个 **示例** Markdown 文档。你可以在左侧输入 Markdown，右侧实时预览并导出为 PDF。
+
+- 支持代码高亮
+- 支持表格、图片、公式（基本）
+
+```java
+public class Hello {
+  public static void main(String[] args) {
+    System.out.println("Hello, PDF!");
+  }
+}
+```
+
+---
+
+> 这是一个引用示例。
+
+## 表格
+
+| 字段 | 说明 |
+|---|---|
+| id | 自增主键 |
+| name | 名称 |
+
+</textarea>
+
+          <div class="mt-3 flex items-center gap-2">
+            <input id="filename" class="border rounded px-2 py-1 text-sm" value="document.pdf" />
+            <button id="clearBtn" class="btn ml-auto px-3 py-1 border rounded text-sm">清空</button>
+            <button id="insertSample" class="btn px-3 py-1 bg-slate-800 text-white rounded text-sm">插入示例</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Resizable split -->
+      <div class="hidden lg:block col-span-1">
+        <div class="resizer h-full"></div>
+      </div>
+
+      <!-- Right column: preview -->
+      <section class="col-span-12 lg:col-span-6">
+        <div class="bg-white rounded-lg shadow p-4">
+          <div class="flex items-center justify-between mb-3">
+            <div class="text-sm text-slate-600">实时预览（打印样式）</div>
+            <div class="flex items-center gap-2">
+              <label class="text-sm">字体</label>
+              <select id="fontSelect" class="border rounded px-2 py-1 text-sm">
+                <option value="Inter">Inter</option>
+                <option value="Noto Serif">Noto Serif</option>
+                <option value="Courier New">Courier New</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="previewWrapper" class="overflow-auto" style="max-height:640px">
+            <article id="preview" class="pdf-page prose prose-slate max-w-none"></article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="mt-6 text-sm text-slate-500">提示：该页面使用第三方库（marked, highlight.js, html2pdf.js）。如需脱网使用，请下载这些库并使用本地引用。</footer>
+  </div>
+
+  <script>
+    // Utilities
+    const editor = document.getElementById('editor');
+    const preview = document.getElementById('preview');
+    const pageSize = document.getElementById('pageSize');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const filenameInput = document.getElementById('filename');
+    const fontSelect = document.getElementById('fontSelect');
+
+    // Marked options
+    marked.setOptions({
+      breaks: true,
+      headerIds: true,
+      mangle: false
+    });
+
+    function render() {
+      const md = editor.value;
+      // Convert markdown -> html
+      let html = marked.parse(md);
+      // Insert into preview
+      preview.innerHTML = html;
+      // Highlight code blocks
+      preview.querySelectorAll('pre code').forEach((block) => {
+        hljs.highlightElement(block);
+      });
+      // Make images responsive
+      preview.querySelectorAll('img').forEach(img => img.classList.add('max-w-full'));
+    }
+
+    // Initial render
+    render();
+
+    // Live render on input with small debounce
+    let tm = null;
+    editor.addEventListener('input', ()=>{ clearTimeout(tm); tm = setTimeout(render, 120); });
+
+    // Toolbar inserts
+    document.querySelectorAll('.tool').forEach(btn => {
+      btn.addEventListener('click', ()=>{
+        const insert = btn.dataset.insert || '';
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        const text = editor.value;
+        editor.value = text.slice(0,start) + insert + text.slice(end);
+        editor.focus();
+        editor.selectionStart = editor.selectionEnd = start + insert.length;
+        render();
+      });
+    });
+
+    // Keyboard shortcuts (Ctrl/Cmd+B for bold)
+    window.addEventListener('keydown', (e)=>{
+      const meta = (navigator.platform.indexOf('Mac')>=0)? e.metaKey : e.ctrlKey;
+      if(meta && e.key.toLowerCase() === 'b'){
+        e.preventDefault();
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        const sel = editor.value.slice(start,end) || '加粗文本';
+        const wrapped = `**${sel}**`;
+        editor.setRangeText(wrapped, start, end, 'end');
+        render();
+      }
+    });
+
+    // Clear / sample
+    document.getElementById('clearBtn').addEventListener('click', ()=>{ editor.value = ''; render(); });
+    document.getElementById('insertSample').addEventListener('click', ()=>{ editor.value = `# 欢迎使用\n\n这是**示例**内容。点击右上角的“导出 PDF”生成可以打印的 PDF 文件。\n\n- 支持代码块\n- 支持表格\n\n\n\n\`\`\`js\nconsole.log('hello')\n\n\`\`\``; render(); });
+
+    // Font switch
+    fontSelect.addEventListener('change', ()=>{
+      preview.style.fontFamily = fontSelect.value;
+    });
+
+    // PDF export
+    downloadBtn.addEventListener('click', async ()=>{
+      // Prepare a clone that will be passed to html2pdf (so we can control page size/landscape)
+      const clone = preview.cloneNode(true);
+      clone.style.padding = '36px';
+      clone.style.background = 'white';
+      clone.style.width = (pageSize.value.includes('landscape')? '1123px':'794px');
+      clone.style.minHeight = '1122px';
+
+      // Wrap in container
+      const container = document.createElement('div');
+      container.appendChild(clone);
+
+      // Options
+      const opt = {
+        margin:       10,
+        filename:     filenameInput.value || 'document.pdf',
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'pt', format: pageSize.value.includes('a4')? 'a4' : pageSize.value, orientation: pageSize.value.includes('landscape')? 'landscape':'portrait' }
+      };
+
+      // Trigger
+      downloadBtn.disabled = true;
+      downloadBtn.textContent = '生成中...';
+      try {
+        await html2pdf().set(opt).from(container).save();
+      } catch(e){
+        console.error(e);
+        alert('导出失败：' + e.message);
+      } finally{
+        downloadBtn.disabled = false;
+        downloadBtn.textContent = '导出 PDF';
+      }
+    });
+
+    // Make the preview scroll to top when rendering big content
+    const previewWrapper = document.getElementById('previewWrapper');
+    const resizeObserver = new ResizeObserver(()=> previewWrapper.scrollTop = 0);
+    resizeObserver.observe(preview);
+
+    // Resizer for desktop between editor and preview (simple implementation)
+    const resizer = document.querySelector('.resizer');
+    if(resizer){
+      let isDown = false;
+      resizer.addEventListener('mousedown', ()=>{ isDown = true; document.body.style.cursor = 'col-resize'; });
+      window.addEventListener('mouseup', ()=>{ isDown = false; document.body.style.cursor = ''; });
+      window.addEventListener('mousemove', (e)=>{
+        if(!isDown) return;
+        // Calculate new width for editor column
+        const container = document.querySelector('main');
+        const rect = container.getBoundingClientRect();
+        const x = e.clientX - rect.left; // position inside main
+        const percent = Math.max(20, Math.min(80, (x / rect.width) * 100));
+        // Apply CSS grid change: left column takes percent, right takes remainder
+        container.style.gridTemplateColumns = `${percent}% 6px ${100-percent-6/rect.width*100}%`;
+      });
+    }
+
+    // Ensure images are loaded with CORS hints for html2canvas
+    preview.addEventListener('load', ()=>{}, true);
+
+    // When page loads, render once more (ensures highlight)
+    window.addEventListener('load', ()=>render());
+  </script>
+</body>
+</html>
