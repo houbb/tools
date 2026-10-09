@@ -1,0 +1,1399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+	<title>候鸟迁徙 · 涌现飞行 | 工具集合</title>
+	<style>
+		:root {
+			--accent: #ffb56b;
+			--panel-bg: rgba(10, 16, 26, 0.62);
+			--line: rgba(255, 255, 255, 0.10);
+			--txt: #e8eef6;
+			--txt-dim: #97a8bd;
+		}
+
+		* { box-sizing: border-box; }
+
+		html, body {
+			margin: 0;
+			padding: 0;
+			width: 100%;
+			height: 100%;
+			overflow: hidden;
+			background: #0a0e18;
+			color: var(--txt);
+			font-family: 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Roboto, Arial, sans-serif;
+			-webkit-font-smoothing: antialiased;
+		}
+
+		#stage { position: fixed; inset: 0; }
+
+		#stage canvas {
+			position: absolute;
+			left: 0;
+			top: 0;
+			display: block;
+		}
+
+		#sky { z-index: 1; }
+		#flock { z-index: 2; }
+		#weather { z-index: 3; }
+
+		.vignette {
+			position: fixed;
+			inset: 0;
+			z-index: 4;
+			pointer-events: none;
+			background: radial-gradient(ellipse at 50% 48%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.30) 78%, rgba(0, 0, 0, 0.62) 100%);
+		}
+
+		.grain {
+			position: fixed;
+			inset: 0;
+			z-index: 5;
+			pointer-events: none;
+			opacity: 0.05;
+			mix-blend-mode: overlay;
+			background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+		}
+
+		/* ---------- 标题 ---------- */
+		.brand {
+			position: fixed;
+			left: 22px;
+			top: 18px;
+			z-index: 8;
+			pointer-events: none;
+			text-shadow: 0 2px 18px rgba(0, 0, 0, 0.55);
+		}
+
+		.brand h1 {
+			margin: 0;
+			font-size: 20px;
+			font-weight: 600;
+			letter-spacing: 3px;
+		}
+
+		.brand .back {
+			display: inline-block;
+			margin-bottom: 8px;
+			font-size: 11.5px;
+			letter-spacing: 1px;
+			color: rgba(255, 255, 255, 0.55);
+			text-decoration: none;
+			pointer-events: auto;
+			transition: color 0.2s;
+		}
+
+		.brand .back:hover { color: var(--accent); }
+
+		.brand p {
+			margin: 5px 0 0;
+			font-size: 12px;
+			letter-spacing: 1px;
+			color: rgba(255, 255, 255, 0.62);
+		}
+
+		.brand .tag {
+			display: inline-block;
+			margin-left: 6px;
+			padding: 1px 7px;
+			border-radius: 999px;
+			font-size: 10px;
+			letter-spacing: 1px;
+			color: #10161f;
+			background: var(--accent);
+			vertical-align: 2px;
+		}
+
+		/* ---------- HUD ---------- */
+		.hud {
+			position: fixed;
+			left: 20px;
+			bottom: 20px;
+			z-index: 8;
+			display: flex;
+			align-items: center;
+			gap: 14px;
+			padding: 12px 16px 12px 14px;
+			border-radius: 16px;
+			border: 1px solid var(--line);
+			background: var(--panel-bg);
+			backdrop-filter: blur(14px);
+			-webkit-backdrop-filter: blur(14px);
+			box-shadow: 0 10px 34px rgba(0, 0, 0, 0.35);
+		}
+
+		.compass { width: 74px; height: 74px; flex: 0 0 auto; }
+		.c-ring { fill: none; stroke: rgba(255, 255, 255, 0.16); stroke-width: 1; }
+		.c-ring2 { fill: none; stroke: rgba(255, 255, 255, 0.07); stroke-width: 1; }
+		.c-lb { fill: rgba(255, 255, 255, 0.42); font-size: 8px; text-anchor: middle; letter-spacing: 0.5px; }
+		#migNeedle path { fill: var(--accent); }
+		#windNeedle path { fill: rgba(255, 255, 255, 0.55); }
+
+		.stats { display: flex; gap: 16px; }
+
+		.stat { display: flex; flex-direction: column; line-height: 1.25; }
+		.stat b { font-size: 17px; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
+		.stat span { font-size: 10.5px; letter-spacing: 1px; color: var(--txt-dim); margin-top: 2px; }
+
+		.cap { position: fixed; right: 20px; bottom: 20px; z-index: 8; font-size: 11px; letter-spacing: 0.6px; color: rgba(255, 255, 255, 0.34); text-align: right; }
+
+		.hint {
+			position: fixed;
+			left: 50%;
+			bottom: 22px;
+			transform: translateX(-50%);
+			z-index: 8;
+			font-size: 12px;
+			letter-spacing: 1px;
+			color: rgba(255, 255, 255, 0.55);
+			pointer-events: none;
+			animation: hintFade 9s ease forwards;
+		}
+
+		@keyframes hintFade {
+			0%, 55% { opacity: 1; }
+			100% { opacity: 0; }
+		}
+
+		/* ---------- 控制面板 ---------- */
+		.panel {
+			position: fixed;
+			right: 18px;
+			top: 18px;
+			z-index: 9;
+			width: 296px;
+			max-height: calc(100vh - 36px);
+			overflow-y: auto;
+			padding: 14px 16px 18px;
+			border-radius: 18px;
+			border: 1px solid var(--line);
+			background: var(--panel-bg);
+			backdrop-filter: blur(16px);
+			-webkit-backdrop-filter: blur(16px);
+			box-shadow: 0 16px 44px rgba(0, 0, 0, 0.42);
+			transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.32s;
+			scrollbar-width: thin;
+		}
+
+		.panel::-webkit-scrollbar { width: 6px; }
+		.panel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 3px; }
+
+		.panel-head {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			padding-bottom: 10px;
+			border-bottom: 1px solid var(--line);
+			font-size: 13px;
+			letter-spacing: 1px;
+		}
+
+		.panel-head .dot {
+			width: 7px;
+			height: 7px;
+			border-radius: 50%;
+			background: var(--accent);
+			box-shadow: 0 0 10px var(--accent);
+		}
+
+		.mini {
+			margin-left: auto;
+			padding: 4px 10px;
+			font-size: 11px;
+			color: var(--txt-dim);
+			background: rgba(255, 255, 255, 0.06);
+			border: 1px solid var(--line);
+			border-radius: 999px;
+			cursor: pointer;
+			transition: 0.18s;
+		}
+
+		.mini:hover { color: #fff; background: rgba(255, 255, 255, 0.13); }
+
+		.gt {
+			margin: 16px 0 4px;
+			font-size: 10.5px;
+			letter-spacing: 2px;
+			text-transform: uppercase;
+			color: var(--txt-dim);
+		}
+
+		.gt:first-of-type { margin-top: 12px; }
+
+		.field { display: block; margin: 10px 0; }
+
+		.fl {
+			display: flex;
+			justify-content: space-between;
+			align-items: baseline;
+			font-size: 12px;
+			color: var(--txt-dim);
+			margin-bottom: 5px;
+		}
+
+		.fl b { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+		select {
+			width: 100%;
+			padding: 7px 9px;
+			font-size: 12.5px;
+			color: var(--txt);
+			background: rgba(255, 255, 255, 0.07);
+			border: 1px solid var(--line);
+			border-radius: 10px;
+			outline: none;
+			cursor: pointer;
+			appearance: none;
+			background-image: linear-gradient(45deg, transparent 50%, var(--txt-dim) 50%), linear-gradient(135deg, var(--txt-dim) 50%, transparent 50%);
+			background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%;
+			background-size: 5px 5px, 5px 5px;
+			background-repeat: no-repeat;
+		}
+
+		select option { background: #131a26; color: var(--txt); }
+
+		input[type=range] {
+			width: 100%;
+			height: 18px;
+			margin: 0;
+			background: transparent;
+			appearance: none;
+			cursor: pointer;
+		}
+
+		input[type=range]::-webkit-slider-runnable-track {
+			height: 3px;
+			border-radius: 3px;
+			background: rgba(255, 255, 255, 0.16);
+		}
+
+		input[type=range]::-webkit-slider-thumb {
+			appearance: none;
+			width: 13px;
+			height: 13px;
+			margin-top: -5px;
+			border-radius: 50%;
+			background: var(--accent);
+			box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+			transition: transform 0.15s;
+		}
+
+		input[type=range]:active::-webkit-slider-thumb { transform: scale(1.22); }
+
+		input[type=range]::-moz-range-track { height: 3px; border-radius: 3px; background: rgba(255, 255, 255, 0.16); }
+		input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border: none; border-radius: 50%; background: var(--accent); }
+
+		.switch {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			padding: 7px 0;
+			font-size: 12.5px;
+			color: var(--txt);
+			cursor: pointer;
+		}
+
+		input[type=checkbox] {
+			appearance: none;
+			width: 34px;
+			height: 18px;
+			margin: 0;
+			border-radius: 999px;
+			background: rgba(255, 255, 255, 0.16);
+			position: relative;
+			cursor: pointer;
+			transition: background 0.2s;
+			flex: 0 0 auto;
+		}
+
+		input[type=checkbox]::after {
+			content: '';
+			position: absolute;
+			left: 2px;
+			top: 2px;
+			width: 14px;
+			height: 14px;
+			border-radius: 50%;
+			background: #fff;
+			transition: transform 0.2s;
+		}
+
+		input[type=checkbox]:checked { background: var(--accent); }
+		input[type=checkbox]:checked::after { transform: translateX(16px); }
+
+		.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+
+		.chip {
+			padding: 5px 11px;
+			font-size: 11.5px;
+			color: var(--txt);
+			background: rgba(255, 255, 255, 0.06);
+			border: 1px solid var(--line);
+			border-radius: 999px;
+			cursor: pointer;
+			transition: 0.18s;
+		}
+
+		.chip:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+		.chip.on { background: var(--accent); color: #10161f; border-color: var(--accent); font-weight: 600; }
+
+		.btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+		.btns button {
+			flex: 1 1 auto;
+			min-width: 76px;
+			padding: 8px 10px;
+			font-size: 12px;
+			color: var(--txt);
+			background: rgba(255, 255, 255, 0.07);
+			border: 1px solid var(--line);
+			border-radius: 10px;
+			cursor: pointer;
+			transition: 0.18s;
+			font-family: inherit;
+		}
+
+		.btns button:hover { background: rgba(255, 255, 255, 0.15); transform: translateY(-1px); }
+		.btns button.primary { background: var(--accent); color: #10161f; border-color: transparent; font-weight: 600; }
+
+		.rules {
+			margin-top: 14px;
+			padding-top: 12px;
+			border-top: 1px solid var(--line);
+			font-size: 11.5px;
+			line-height: 1.85;
+			color: var(--txt-dim);
+		}
+
+		.rules i { color: var(--accent); font-style: normal; }
+
+		.panel-toggle {
+			position: fixed;
+			right: 18px;
+			top: 18px;
+			z-index: 10;
+			display: none;
+			padding: 9px 13px;
+			font-size: 15px;
+			color: var(--txt);
+			background: var(--panel-bg);
+			border: 1px solid var(--line);
+			border-radius: 12px;
+			backdrop-filter: blur(14px);
+			-webkit-backdrop-filter: blur(14px);
+			cursor: pointer;
+		}
+
+		body.panel-hidden .panel { transform: translateX(calc(100% + 26px)); opacity: 0; pointer-events: none; }
+		body.panel-hidden .panel-toggle { display: block; }
+
+		@media (max-width: 760px) {
+			.panel { left: 12px; right: 12px; width: auto; top: auto; bottom: 12px; max-height: 52vh; }
+			.hud { left: 12px; bottom: auto; top: 116px; padding: 9px 12px; }
+			.brand h1 { font-size: 17px; letter-spacing: 2px; }
+			.brand p { font-size: 11px; }
+			.compass { width: 58px; height: 58px; }
+			.stats { gap: 12px; }
+			.stat b { font-size: 14px; }
+			.cap, .hint { display: none; }
+			body.panel-hidden .panel { transform: translateY(calc(100% + 26px)); }
+		}
+	</style>
+</head>
+
+<body>
+	<div id="stage">
+		<canvas id="sky"></canvas>
+		<canvas id="flock"></canvas>
+		<canvas id="weather"></canvas>
+	</div>
+	<div class="vignette"></div>
+	<div class="grain"></div>
+
+	<header class="brand">
+		<a class="back" href="https://houbb.github.io">← 返回首页</a>
+		<h1>候鸟迁徙 · 涌现飞行</h1>
+		<p>简单的局部规则，复杂的群体秩序<span class="tag">BOIDS</span></p>
+	</header>
+
+	<div class="hud">
+		<svg class="compass" viewBox="0 0 80 80" aria-hidden="true">
+			<circle class="c-ring2" cx="40" cy="40" r="26"></circle>
+			<circle class="c-ring" cx="40" cy="40" r="34"></circle>
+			<text class="c-lb" x="40" y="13.5">N</text>
+			<text class="c-lb" x="68.5" y="43">E</text>
+			<text class="c-lb" x="40" y="73.5">S</text>
+			<text class="c-lb" x="12" y="43">W</text>
+			<g id="windNeedle">
+				<path d="M40 19 L43.4 40 L40 37 L36.6 40 Z"></path>
+			</g>
+			<g id="migNeedle">
+				<path d="M40 9 L45 40 L40 35.6 L35 40 Z"></path>
+			</g>
+			<circle cx="40" cy="40" r="2" fill="rgba(255,255,255,0.7)"></circle>
+		</svg>
+		<div class="stats">
+			<div class="stat"><b id="stBirds">0</b><span>只候鸟</span></div>
+			<div class="stat"><b id="stPol">0%</b><span>极化度</span></div>
+			<div class="stat"><b id="stWind">0.0</b><span>风力</span></div>
+			<div class="stat"><b id="stFps">60</b><span>FPS</span></div>
+		</div>
+	</div>
+
+	<div class="cap">拖拽 / 移动鼠标惊扰鸟群 · 空格暂停 · R 重置 · H 收起面板</div>
+	<div class="hint">候鸟正在启程……</div>
+
+	<button class="panel-toggle" id="panelToggle" title="显示控制面板">☰</button>
+
+	<aside class="panel" id="panel">
+		<div class="panel-head">
+			<span class="dot"></span><strong>场景设置</strong>
+			<button class="mini" id="closePanel">收起</button>
+		</div>
+
+		<div class="gt">场景预设</div>
+		<div class="chips" id="presetChips"></div>
+
+		<div class="gt">环境</div>
+		<label class="field">
+			<div class="fl"><span>配色</span></div>
+			<select data-key="palette" id="paletteSel"></select>
+		</label>
+		<label class="field">
+			<div class="fl"><span>天气</span></div>
+			<select data-key="weather" id="weatherSel"></select>
+		</label>
+		<label class="field">
+			<div class="fl"><span>数量</span><b data-out="count"></b></div>
+			<input type="range" data-key="count" min="20" max="600" step="10">
+		</label>
+		<label class="field">
+			<div class="fl"><span>迁徙方向</span><b data-out="migrateDir"></b></div>
+			<input type="range" data-key="migrateDir" min="0" max="359" step="1">
+		</label>
+		<label class="field">
+			<div class="fl"><span>风力倍率</span><b data-out="windMul"></b></div>
+			<input type="range" data-key="windMul" min="0" max="3" step="0.05">
+		</label>
+
+		<div class="gt">鸟群</div>
+		<label class="field">
+			<div class="fl"><span>飞行速度</span><b data-out="speedMul"></b></div>
+			<input type="range" data-key="speedMul" min="0.5" max="2.5" step="0.05">
+		</label>
+		<label class="field">
+			<div class="fl"><span>视野半径</span><b data-out="vision"></b></div>
+			<input type="range" data-key="vision" min="45" max="170" step="5">
+		</label>
+
+		<div class="gt">涌现规则</div>
+		<label class="field">
+			<div class="fl"><span>聚集 · Cohesion</span><b data-out="cohesion"></b></div>
+			<input type="range" data-key="cohesion" min="0" max="2" step="0.05">
+		</label>
+		<label class="field">
+			<div class="fl"><span>对齐 · Alignment</span><b data-out="alignment"></b></div>
+			<input type="range" data-key="alignment" min="0" max="2" step="0.05">
+		</label>
+		<label class="field">
+			<div class="fl"><span>分离 · Separation</span><b data-out="separation"></b></div>
+			<input type="range" data-key="separation" min="0" max="3" step="0.05">
+		</label>
+
+		<div class="gt">显示与交互</div>
+		<label class="switch"><span>飞行轨迹</span><input type="checkbox" data-key="trails"></label>
+		<label class="switch"><span>辉光</span><input type="checkbox" data-key="glow"></label>
+		<label class="switch"><span>鼠标惊扰</span><input type="checkbox" data-key="startle"></label>
+		<label class="switch"><span>风向气流</span><input type="checkbox" data-key="showWind"></label>
+
+		<div class="btns">
+			<button id="btnPause" class="primary">暂停</button>
+			<button id="btnReset">重置鸟群</button>
+			<button id="btnRandom">随机场景</button>
+			<button id="btnFull">全屏</button>
+		</div>
+
+		<div class="rules">
+			<i>分离</i>：避开过近的同伴<br>
+			<i>对齐</i>：与邻居保持同向<br>
+			<i>聚集</i>：向邻居中心靠拢<br>
+			<i>迁徙</i>：朝向目标方向前进<br>
+			<i>风场</i>：气流推动并扰乱队形
+		</div>
+	</aside>
+
+	<script>
+		(function () {
+			'use strict';
+
+			/* ================= 工具函数 ================= */
+			var TAU = Math.PI * 2;
+			var rand = function (a, b) { return a + Math.random() * (b - a); };
+			var clamp = function (v, a, b) { return v < a ? a : (v > b ? b : v); };
+			var d2r = function (d) { return d * Math.PI / 180; };
+
+			function hex2rgb(h) {
+				h = h.replace('#', '');
+				if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+				var n = parseInt(h, 16);
+				return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+			}
+
+			function rgba(hex, a) {
+				var c = hex2rgb(hex);
+				return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')';
+			}
+
+			/* ================= 配色方案 ================= */
+			var PALETTES = {
+				dusk: {
+					name: '黄昏归途',
+					sky: [[0, '#101728'], [0.42, '#3a2c56'], [0.70, '#9c4a52'], [0.86, '#dd8a55'], [1, '#f3b775']],
+					sun: { x: 0.74, y: 0.72, r: 46, core: '#ffe6ae', glow: '#ff9950', a: 0.95 },
+					stars: 0.35, cloud: '#f6c79b', moon: false,
+					hills: ['#3a2b4a', '#251b34', '#140f1f'],
+					bird: '#2a2138', glow: '#ffb069', accent: '#ffb56b', haze: '#e9a86e'
+				},
+				dawn: {
+					name: '黎明薄雾',
+					sky: [[0, '#0b1730'], [0.40, '#25486b'], [0.68, '#7fa6bd'], [0.86, '#e2c9a8'], [1, '#f7e3c4']],
+					sun: { x: 0.26, y: 0.70, r: 38, core: '#fff4dd', glow: '#ffd79a', a: 0.85 },
+					stars: 0.25, cloud: '#f0dcc4', moon: false,
+					hills: ['#33506b', '#22354b', '#131f2e'],
+					bird: '#1e2739', glow: '#ffd9a4', accent: '#ffd9a0', haze: '#d9e6ef'
+				},
+				night: {
+					name: '深夜星河',
+					sky: [[0, '#04060e'], [0.45, '#0a1122'], [0.78, '#141f3a'], [1, '#1e2c4c']],
+					sun: { x: 0.78, y: 0.20, r: 30, core: '#f2f7ff', glow: '#9dbcff', a: 0.9 },
+					stars: 1.0, cloud: '#8fa6c9', moon: true,
+					hills: ['#0d1526', '#080d18', '#04070e'],
+					bird: '#cfe0ff', glow: '#7fb0ff', accent: '#a9c8ff', haze: '#8ea8d0'
+				},
+				arctic: {
+					name: '极地雪原',
+					sky: [[0, '#0a1826'], [0.40, '#1b3b52'], [0.70, '#4d7c94'], [0.88, '#9dc9d8'], [1, '#d8eef4']],
+					sun: { x: 0.62, y: 0.66, r: 30, core: '#ffffff', glow: '#bfe6f5', a: 0.6 },
+					stars: 0.4, cloud: '#e6f4fb', moon: false,
+					hills: ['#3a6277', '#27455a', '#16293a'],
+					bird: '#eaf6fb', glow: '#a8dcf2', accent: '#9fe0ff', haze: '#cfe9f2'
+				},
+				autumn: {
+					name: '金秋南飞',
+					sky: [[0, '#241a12'], [0.40, '#5b3a21'], [0.70, '#b06f2c'], [0.88, '#e0a854'], [1, '#f0c877']],
+					sun: { x: 0.30, y: 0.70, r: 44, core: '#fff0c8', glow: '#ffb45c', a: 0.9 },
+					stars: 0.2, cloud: '#f2cf9a', moon: false,
+					hills: ['#6b4626', '#472d18', '#28180d'],
+					bird: '#241708', glow: '#ffc473', accent: '#ffb347', haze: '#e8b877'
+				},
+				twilight: {
+					name: '暮色紫霞',
+					sky: [[0, '#100b22'], [0.42, '#2c1d49'], [0.70, '#57366e'], [0.88, '#9a5f86'], [1, '#c98a9e']],
+					sun: { x: 0.80, y: 0.68, r: 34, core: '#ffe4f2', glow: '#c47bb0', a: 0.7 },
+					stars: 0.6, cloud: '#e0b6d8', moon: false,
+					hills: ['#3a2450', '#251636', '#130c1e'],
+					bird: '#f3e2ff', glow: '#cf9cff', accent: '#d9a2ff', haze: '#c79ad6'
+				},
+				dune: {
+					name: '沙丘热风',
+					sky: [[0, '#2b1f14'], [0.40, '#6d4a29'], [0.70, '#bd8446'], [0.88, '#e3bb7d'], [1, '#f4dcae']],
+					sun: { x: 0.50, y: 0.62, r: 48, core: '#fff2d0', glow: '#ffcf8a', a: 0.8 },
+					stars: 0.1, cloud: '#f0d3a4', moon: false,
+					hills: ['#8a6335', '#5f4324', '#3a2916'],
+					bird: '#2b1d10', glow: '#ffd79a', accent: '#ffcf8a', haze: '#e6c79a'
+				}
+			};
+
+			/* ================= 天气 ================= */
+			var WEATHERS = {
+				clear: { name: '晴朗', wind: 0.35, gust: 0.25, particle: null, amount: 0, cloud: 0.15, dark: 0.00, haze: 0.00, speed: 1.00, streak: 0.0, lightning: false },
+				cloudy: { name: '多云', wind: 0.80, gust: 0.50, particle: null, amount: 0, cloud: 0.55, dark: 0.14, haze: 0.06, speed: 0.95, streak: 0.2, lightning: false },
+				windy: { name: '大风', wind: 1.70, gust: 1.20, particle: null, amount: 0, cloud: 0.30, dark: 0.08, haze: 0.05, speed: 0.90, streak: 0.9, lightning: false },
+				rain: { name: '细雨', wind: 1.00, gust: 0.60, particle: 'rain', amount: 420, cloud: 0.70, dark: 0.30, haze: 0.12, speed: 0.85, streak: 0.35, lightning: false },
+				snow: { name: '飘雪', wind: 0.60, gust: 0.40, particle: 'snow', amount: 300, cloud: 0.60, dark: 0.16, haze: 0.10, speed: 0.90, streak: 0.1, lightning: false },
+				fog: { name: '浓雾', wind: 0.25, gust: 0.15, particle: null, amount: 0, cloud: 0.30, dark: 0.12, haze: 0.42, speed: 0.80, streak: 0.0, lightning: false },
+				storm: { name: '雷暴', wind: 2.60, gust: 2.00, particle: 'rain', amount: 820, cloud: 0.95, dark: 0.45, haze: 0.18, speed: 0.80, streak: 1.0, lightning: true }
+			};
+
+			/* ================= 场景预设 ================= */
+			var PRESETS = [
+				{ name: '黄昏归途', palette: 'dusk', weather: 'clear', count: 200, migrateDir: 250, windMul: 0.7, speedMul: 1.15, vision: 85, cohesion: 0.9, alignment: 1.05, separation: 1.5 },
+				{ name: '风暴迁徙', palette: 'night', weather: 'storm', count: 280, migrateDir: 210, windMul: 1.4, speedMul: 1.25, vision: 100, cohesion: 1.2, alignment: 1.3, separation: 1.6 },
+				{ name: '极地雪原', palette: 'arctic', weather: 'snow', count: 240, migrateDir: 300, windMul: 0.6, speedMul: 1.0, vision: 90, cohesion: 1.0, alignment: 1.1, separation: 1.4 },
+				{ name: '黎明出发', palette: 'dawn', weather: 'cloudy', count: 170, migrateDir: 110, windMul: 0.6, speedMul: 1.1, vision: 80, cohesion: 0.85, alignment: 1.0, separation: 1.45 },
+				{ name: '暮色迷雾', palette: 'twilight', weather: 'fog', count: 150, migrateDir: 230, windMul: 0.35, speedMul: 0.95, vision: 70, cohesion: 1.15, alignment: 1.2, separation: 1.3 },
+				{ name: '金秋南飞', palette: 'autumn', weather: 'windy', count: 320, migrateDir: 270, windMul: 1.0, speedMul: 1.2, vision: 95, cohesion: 1.0, alignment: 1.15, separation: 1.55 }
+			];
+
+			/* ================= 状态 ================= */
+			var state = {
+				palette: 'dusk', weather: 'clear', count: 200,
+				migrateDir: 250, windMul: 0.7, speedMul: 1.15, vision: 85,
+				cohesion: 0.9, alignment: 1.05, separation: 1.5,
+				trails: true, glow: true, startle: true, showWind: true,
+				paused: false, t: 0, windDir: 55, preset: 0
+			};
+
+			var MIGRATE_W = 0.8;      // 迁徙引导强度
+			var SEP_RATIO = 0.42;     // 分离半径 = 视野半径 * 该比例
+
+			/* ================= DOM & 画布 ================= */
+			var dpr = Math.min(2, window.devicePixelRatio || 1);
+			var vw = 0, vh = 0;
+			var skyEl = document.getElementById('sky');
+			var flockEl = document.getElementById('flock');
+			var wxEl = document.getElementById('weather');
+			var ctxSky = skyEl.getContext('2d');
+			var ctxFlock = flockEl.getContext('2d');
+			var ctxWx = wxEl.getContext('2d');
+
+			function sizeCanvas(el, ctx) {
+				el.width = Math.round(vw * dpr);
+				el.height = Math.round(vh * dpr);
+				el.style.width = vw + 'px';
+				el.style.height = vh + 'px';
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			}
+
+			function resize() {
+				vw = window.innerWidth;
+				vh = window.innerHeight;
+				sizeCanvas(skyEl, ctxSky);
+				sizeCanvas(flockEl, ctxFlock);
+				sizeCanvas(wxEl, ctxWx);
+				drawSky();
+				buildParticles();
+				buildGrid();
+			}
+
+			/* ================= 鸟群 ================= */
+			var birds = [];
+
+			function makeBird(spread) {
+				var a = d2r(state.migrateDir) + rand(-0.55, 0.55);
+				var sp = rand(1.4, 2.2) * state.speedMul;
+				var s = spread === undefined ? 1 : spread;
+				return {
+					x: vw * 0.5 + rand(-vw * 0.3 * s, vw * 0.3 * s),
+					y: vh * 0.5 + rand(-vh * 0.25 * s, vh * 0.25 * s),
+					vx: Math.cos(a) * sp,
+					vy: Math.sin(a) * sp,
+					angle: a,
+					phase: rand(0, TAU),
+					size: rand(0.72, 1.35),
+					cx: 0, cy: 0
+				};
+			}
+
+			function setCount(n) {
+				n = Math.round(n);
+				while (birds.length < n) birds.push(makeBird(0.25));
+				if (birds.length > n) birds.length = n;
+			}
+
+			function resetFlock() {
+				birds = [];
+				setCount(state.count);
+				ctxFlock.clearRect(0, 0, vw, vh);
+			}
+
+			/* 空间网格：把邻居查询从 O(n²) 降到 O(n) */
+			var grid = { cell: 0, cols: 0, rows: 0, cells: [] };
+
+			function buildGrid() {
+				grid.cell = Math.max(36, state.vision);
+				grid.cols = Math.max(1, Math.ceil(vw / grid.cell));
+				grid.rows = Math.max(1, Math.ceil(vh / grid.cell));
+				var total = grid.cols * grid.rows;
+				while (grid.cells.length < total) grid.cells.push([]);
+				grid.cells.length = total;
+				for (var i = 0; i < total; i++) grid.cells[i].length = 0;
+			}
+
+			var windVec = { x: 1, y: 0 };
+			var pointer = { x: 0, y: 0, r: 150, active: false, burst: 0 };
+
+			function updateFlock(dt) {
+				var W = WEATHERS[state.weather];
+				var cw = state.cohesion, al = state.alignment, se = state.separation;
+				var speedMul = state.speedMul;
+
+				// 风：基础方向缓慢摆动 + 阵风起伏
+				state.windDir = 55 + 26 * Math.sin(state.t * 0.00007) +
+					(W.wind > 1.5 ? 35 * Math.sin(state.t * 0.00031 + 1.1) : 0);
+				var wd = d2r(state.windDir);
+				windVec.x = Math.cos(wd);
+				windVec.y = Math.sin(wd);
+				var gust = 1 + W.gust * (0.45 * Math.sin(state.t * 0.0013) +
+					0.35 * Math.sin(state.t * 0.0041 + 1.7) +
+					0.2 * Math.sin(state.t * 0.0007 + 0.5));
+				var windStr = W.wind * state.windMul * gust;
+
+				// 网格
+				var wantCell = Math.max(36, state.vision);
+				if (grid.cell !== wantCell || grid.cols !== Math.max(1, Math.ceil(vw / wantCell)) ||
+					grid.rows !== Math.max(1, Math.ceil(vh / wantCell))) {
+					buildGrid();
+				}
+				var cols = grid.cols, rows = grid.rows, cell = grid.cell, cells = grid.cells;
+				for (var c = 0; c < cells.length; c++) cells[c].length = 0;
+				for (var i = 0; i < birds.length; i++) {
+					var b = birds[i];
+					var gx = clamp(Math.floor(b.x / cell), 0, cols - 1);
+					var gy = clamp(Math.floor(b.y / cell), 0, rows - 1);
+					b.cx = gx; b.cy = gy;
+					cells[gy * cols + gx].push(i);
+				}
+
+				var vis = state.vision, vis2 = vis * vis;
+				var sepR = vis * SEP_RATIO, sep2 = sepR * sepR;
+				var edge = Math.min(vw, vh) * 0.14;
+				// 上限取“某规则权重 + 迁徙 + 风”的保守估计，保证滑杆拉到最大时方向不失真
+				var maxForce = Math.max(2.2, (se + MIGRATE_W + 1) * 0.62) * speedMul;
+				var maxSpeed = 2.5 * speedMul * W.speed;
+				var minSpeed = 1.15 * speedMul * (state.weather === 'storm' ? 1.2 : 1);
+				var migX = Math.cos(d2r(state.migrateDir)), migY = Math.sin(d2r(state.migrateDir));
+				var windAcc = windStr * 0.05;
+				var pr = pointer.r * (1 + pointer.burst * 0.5);
+				var pStr = 5.0 * (1 + pointer.burst * 1.8);
+
+				for (var k = 0; k < birds.length; k++) {
+					var o = birds[k];
+					var cnt = 0, sx = 0, sy = 0, avx = 0, avy = 0, sepx = 0, sepy = 0;
+
+					for (var oy = -1; oy <= 1; oy++) {
+						var ny = o.cy + oy;
+						if (ny < 0 || ny >= rows) continue;
+						for (var ox = -1; ox <= 1; ox++) {
+							var nx = o.cx + ox;
+							if (nx < 0 || nx >= cols) continue;
+							var bucket = cells[ny * cols + nx];
+							for (var m = 0; m < bucket.length; m++) {
+								var j = bucket[m];
+								if (j === k) continue;
+								var other = birds[j];
+								var dx = other.x - o.x, dy = other.y - o.y;
+								var dd = dx * dx + dy * dy;
+								if (dd > vis2 || dd < 0.0001) continue;
+								cnt++; sx += other.x; sy += other.y;
+								avx += other.vx; avy += other.vy;
+								if (dd < sep2) {
+									var inv = 1 / Math.sqrt(dd);
+									sepx -= dx * inv; sepy -= dy * inv;
+								}
+							}
+						}
+					}
+
+					var fx = 0, fy = 0;
+					if (cnt > 0) {
+						var ux = sx / cnt - o.x, uy = sy / cnt - o.y;
+						var um = Math.sqrt(ux * ux + uy * uy) || 1;
+						fx += ux / um * cw; fy += uy / um * cw;
+
+						var vxm = avx / cnt, vym = avy / cnt;
+						var vm = Math.sqrt(vxm * vxm + vym * vym) || 1;
+						fx += vxm / vm * al; fy += vym / vm * al;
+					}
+					if (sepx !== 0 || sepy !== 0) {
+						var sm = Math.sqrt(sepx * sepx + sepy * sepy) || 1;
+						fx += sepx / sm * se; fy += sepy / sm * se;
+					}
+
+					// 迁徙引导
+					fx += migX * MIGRATE_W; fy += migY * MIGRATE_W;
+
+					// 风推
+					fx += windVec.x * windAcc; fy += windVec.y * windAcc;
+
+					// 边界柔和回避
+					if (o.x < edge) fx += (1 - o.x / edge) * 2.6;
+					else if (o.x > vw - edge) fx -= (1 - (vw - o.x) / edge) * 2.6;
+					if (o.y < edge) fy += (1 - o.y / edge) * 2.6;
+					else if (o.y > vh - edge) fy -= (1 - (vh - o.y) / edge) * 2.6;
+
+					// 鼠标惊扰
+					if (state.startle && pointer.active) {
+						var px = o.x - pointer.x, py = o.y - pointer.y;
+						var pd = Math.sqrt(px * px + py * py) || 1;
+						if (pd < pr) {
+							var t = 1 - pd / pr;
+							fx += px / pd * t * pStr;
+							fy += py / pd * t * pStr;
+						}
+					}
+
+					var fm = Math.sqrt(fx * fx + fy * fy);
+					if (fm > maxForce) { var sc = maxForce / fm; fx *= sc; fy *= sc; }
+
+					o.vx += fx * dt;
+					o.vy += fy * dt;
+
+					var sp = Math.sqrt(o.vx * o.vx + o.vy * o.vy) || 1;
+					if (sp > maxSpeed) { o.vx = o.vx / sp * maxSpeed; o.vy = o.vy / sp * maxSpeed; }
+					else if (sp < minSpeed) { o.vx = o.vx / sp * minSpeed; o.vy = o.vy / sp * minSpeed; }
+
+					o.x += o.vx * dt;
+					o.y += o.vy * dt;
+					o.angle = Math.atan2(o.vy, o.vx);
+					o.phase += (0.28 + sp * 0.05) * dt * (1 + W.gust * 0.2);
+				}
+
+				if (pointer.burst > 0) pointer.burst = Math.max(0, pointer.burst - 0.028 * dt);
+			}
+
+			/* ================= 天空 ================= */
+			function drawSky() {
+				var p = PALETTES[state.palette];
+				var W = WEATHERS[state.weather];
+				ctxSky.setTransform(dpr, 0, 0, dpr, 0, 0);
+				ctxSky.globalAlpha = 1;
+				ctxSky.globalCompositeOperation = 'source-over';
+				ctxSky.clearRect(0, 0, vw, vh);
+
+				var g = ctxSky.createLinearGradient(0, 0, 0, vh);
+				for (var i = 0; i < p.sky.length; i++) g.addColorStop(p.sky[i][0], p.sky[i][1]);
+				ctxSky.fillStyle = g;
+				ctxSky.fillRect(0, 0, vw, vh);
+
+				// 星
+				if (p.stars > 0) {
+					var starCount = Math.min(420, Math.round(vw * vh / 9000));
+					for (var s = 0; s < starCount; s++) {
+						var sxx = Math.random() * vw;
+						var syy = Math.random() * vh * 0.72;
+						var aa = Math.random() * p.stars;
+						ctxSky.fillStyle = 'rgba(255,255,255,' + aa.toFixed(3) + ')';
+						ctxSky.fillRect(sxx, syy, Math.random() < 0.12 ? 1.8 : 1, Math.random() < 0.12 ? 1.8 : 1);
+					}
+				}
+
+				// 日/月
+				var sun = p.sun;
+				var cxp = sun.x * vw, cyp = sun.y * vh, r = sun.r;
+				var halo = ctxSky.createRadialGradient(cxp, cyp, r * 0.2, cxp, cyp, r * 5.2);
+				halo.addColorStop(0, rgba(sun.glow, 0.55 * sun.a));
+				halo.addColorStop(0.35, rgba(sun.glow, 0.18 * sun.a));
+				halo.addColorStop(1, rgba(sun.glow, 0));
+				ctxSky.fillStyle = halo;
+				ctxSky.fillRect(cxp - r * 5.2, cyp - r * 5.2, r * 10.4, r * 10.4);
+
+				ctxSky.fillStyle = rgba(sun.core, 0.95 * sun.a);
+				ctxSky.beginPath();
+				if (p.moon) {
+					ctxSky.arc(cxp, cyp, r, 0, TAU);
+					ctxSky.arc(cxp + r * 0.52, cyp - r * 0.2, r * 0.92, 0, TAU);
+					ctxSky.fill('evenodd');
+				} else {
+					ctxSky.arc(cxp, cyp, r, 0, TAU);
+					ctxSky.fill();
+				}
+
+				// 云
+				if (W.cloud > 0) {
+					var cloudCount = Math.round(6 + W.cloud * 14);
+					for (var ci = 0; ci < cloudCount; ci++) {
+						var ccx = Math.random() * vw;
+						var ccy = Math.random() * vh * 0.6;
+						var cwid = rand(180, 620);
+						var chgt = rand(46, 150);
+						var cg = ctxSky.createRadialGradient(ccx, ccy, 0, ccx, ccy, cwid * 0.5);
+						var alpha = W.cloud * rand(0.10, 0.26);
+						cg.addColorStop(0, rgba(p.cloud, alpha));
+						cg.addColorStop(1, rgba(p.cloud, 0));
+						ctxSky.save();
+						ctxSky.translate(ccx, ccy);
+						ctxSky.scale(1, chgt / (cwid * 0.5));
+						ctxSky.fillStyle = cg;
+						ctxSky.beginPath();
+						ctxSky.arc(0, 0, cwid * 0.5, 0, TAU);
+						ctxSky.fill();
+						ctxSky.restore();
+					}
+				}
+
+				// 阴天/雨天压暗
+				if (W.dark > 0) {
+					ctxSky.fillStyle = 'rgba(6,10,20,' + W.dark.toFixed(3) + ')';
+					ctxSky.fillRect(0, 0, vw, vh);
+				}
+
+				// 远山剪影
+				var layers = p.hills;
+				for (var li = 0; li < layers.length; li++) {
+					var baseY = vh * (0.78 + li * 0.075);
+					var amp = 26 + li * 22;
+					var ph1 = li * 2.3, ph2 = li * 5.1;
+					ctxSky.fillStyle = layers[li];
+					ctxSky.beginPath();
+					ctxSky.moveTo(0, vh);
+					for (var x = 0; x <= vw; x += 6) {
+						var u = x / vw;
+						var y = baseY +
+							Math.sin(u * (2.4 + li * 1.6) + ph1) * amp +
+							Math.sin(u * (6.1 + li * 2.2) + ph2) * amp * 0.42 +
+							Math.sin(u * (13.7 + li * 3.1)) * amp * 0.14;
+						ctxSky.lineTo(x, y);
+					}
+					ctxSky.lineTo(vw, vh);
+					ctxSky.closePath();
+					ctxSky.fill();
+				}
+
+				// 地平线轻雾
+				if (W.haze > 0) {
+					var hg = ctxSky.createLinearGradient(0, vh * 0.55, 0, vh);
+					hg.addColorStop(0, rgba(p.haze, 0));
+					hg.addColorStop(1, rgba(p.haze, W.haze * 0.5));
+					ctxSky.fillStyle = hg;
+					ctxSky.fillRect(0, vh * 0.55, vw, vh * 0.45);
+				}
+			}
+
+			/* ================= 天气粒子 ================= */
+			var drops = [], flakes = [], streaks = [];
+			var lightning = { flash: 0, bolt: null, timer: 3.5 };
+
+			function buildParticles() {
+				var W = WEATHERS[state.weather];
+				var area = Math.min(1.6, (vw * vh) / (1400 * 800));
+				drops = []; flakes = []; streaks = [];
+
+				if (W.particle === 'rain') {
+					var rn = Math.round(W.amount * area);
+					for (var i = 0; i < rn; i++) {
+						drops.push({ x: rand(-60, vw + 60), y: rand(-vh, vh), sp: rand(8, 16), len: rand(0.9, 1.7) });
+					}
+				} else if (W.particle === 'snow') {
+					var sn = Math.round(W.amount * area);
+					for (var j = 0; j < sn; j++) {
+						flakes.push({
+							x: rand(-40, vw + 40), y: rand(-vh, vh), sp: rand(0.55, 1.7),
+							r: rand(0.8, 2.5), sway: rand(0, TAU), amp: rand(0.25, 0.75)
+						});
+					}
+				}
+
+				var stn = Math.round((W.streak || 0) * 70);
+				for (var k = 0; k < stn; k++) {
+					streaks.push({ x: rand(-160, vw + 160), y: rand(0, vh), sp: rand(2.2, 6.5), a: rand(0.05, 0.2), len: rand(50, 170) });
+				}
+			}
+
+			function drawWeather(dt) {
+				var p = PALETTES[state.palette];
+				var W = WEATHERS[state.weather];
+				ctxWx.setTransform(dpr, 0, 0, dpr, 0, 0);
+				ctxWx.globalAlpha = 1;
+				ctxWx.globalCompositeOperation = 'source-over';
+				ctxWx.clearRect(0, 0, vw, vh);
+				ctxWx.lineCap = 'round';
+
+				var wsv = W.wind * state.windMul;
+
+				// 云团 / 雾气：仅浓雾这类高湿度天气成幕，风暴只是空气浑浊，不应被洗白
+				if (W.haze > 0.25) {
+					for (var b = 0; b < 4; b++) {
+						var y = vh * (0.42 + b * 0.15) + Math.sin(state.t * 0.00016 + b * 1.8) * 26;
+						var mg = ctxWx.createLinearGradient(0, y - 150, 0, y + 150);
+						mg.addColorStop(0, rgba(p.haze, 0));
+						mg.addColorStop(0.5, rgba(p.haze, W.haze * 0.45));
+						mg.addColorStop(1, rgba(p.haze, 0));
+						ctxWx.fillStyle = mg;
+						ctxWx.fillRect(0, y - 150, vw, 300);
+					}
+				}
+
+				// 气流线
+				if (state.showWind && streaks.length) {
+					ctxWx.strokeStyle = 'rgba(255,255,255,' + (0.10 * W.streak).toFixed(3) + ')';
+					ctxWx.lineWidth = 1;
+					ctxWx.beginPath();
+					for (var s = 0; s < streaks.length; s++) {
+						var st = streaks[s];
+						st.x += windVec.x * st.sp * (0.6 + wsv) * dt;
+						st.y += windVec.y * st.sp * (0.6 + wsv) * dt;
+						if (st.x < -200) st.x = vw + 200;
+						if (st.x > vw + 200) st.x = -200;
+						if (st.y < -200) st.y = vh + 200;
+						if (st.y > vh + 200) st.y = -200;
+						ctxWx.moveTo(st.x, st.y);
+						ctxWx.lineTo(st.x - windVec.x * st.len, st.y - windVec.y * st.len);
+					}
+					ctxWx.stroke();
+				}
+
+				// 雨
+				if (drops.length) {
+					var rvx = windVec.x * wsv * 1.6;
+					var rainA = clamp(0.26 + wsv * 0.14, 0.2, 0.62);
+					ctxWx.strokeStyle = 'rgba(198,224,255,' + rainA.toFixed(3) + ')';
+					ctxWx.lineWidth = W.name === '雷暴' ? 1.3 : 1;
+					ctxWx.beginPath();
+					for (var d = 0; d < drops.length; d++) {
+						var dd = drops[d];
+						dd.x += rvx * dd.sp * 0.16 * dt;
+						dd.y += dd.sp * dt;
+						if (dd.y > vh + 30) { dd.y = -30; dd.x = rand(-60, vw + 60); }
+						if (dd.x < -80) dd.x += vw + 160;
+						if (dd.x > vw + 80) dd.x -= vw + 160;
+						ctxWx.moveTo(dd.x, dd.y);
+						ctxWx.lineTo(dd.x - rvx * dd.len * 0.5, dd.y - dd.sp * dd.len);
+					}
+					ctxWx.stroke();
+				}
+
+				// 雪
+				if (flakes.length) {
+					ctxWx.fillStyle = 'rgba(255,255,255,0.86)';
+					for (var f = 0; f < flakes.length; f++) {
+						var fl = flakes[f];
+						fl.sway += 0.016 * dt;
+						fl.y += fl.sp * dt;
+						fl.x += windVec.x * wsv * 0.5 * dt + Math.sin(fl.sway) * fl.amp * dt;
+						if (fl.y > vh + 20) { fl.y = -20; fl.x = rand(-40, vw + 40); }
+						if (fl.x < -50) fl.x += vw + 100;
+						if (fl.x > vw + 50) fl.x -= vw + 100;
+						ctxWx.beginPath();
+						ctxWx.arc(fl.x, fl.y, fl.r, 0, TAU);
+						ctxWx.fill();
+					}
+				}
+
+				// 闪电
+				if (W.lightning) {
+					lightning.timer -= dt / 60;
+					if (lightning.timer <= 0) {
+						lightning.timer = rand(2.4, 8);
+						lightning.flash = 1;
+						var bx = rand(vw * 0.15, vw * 0.85);
+						var by = vh * rand(0.62, 0.82);
+						var pts = [{ x: bx, y: -20 }];
+						var segs = 16;
+						for (var q = 1; q <= segs; q++) {
+							pts.push({
+								x: bx + (rand(-1, 1) * 46) * (1 - q / segs * 0.35) + (q / segs) * rand(-70, 70),
+								y: -20 + (by + 20) * (q / segs)
+							});
+						}
+						lightning.bolt = pts;
+					}
+					if (lightning.flash > 0.02) {
+						var fa = Math.min(0.5, lightning.flash * 0.42);
+						ctxWx.fillStyle = 'rgba(226,238,255,' + fa.toFixed(3) + ')';
+						ctxWx.fillRect(0, 0, vw, vh);
+						if (lightning.bolt) {
+							ctxWx.globalCompositeOperation = 'lighter';
+							ctxWx.strokeStyle = 'rgba(190,215,255,' + (lightning.flash * 0.55).toFixed(3) + ')';
+							ctxWx.lineWidth = 5;
+							ctxWx.beginPath();
+							for (var t2 = 0; t2 < lightning.bolt.length; t2++) {
+								var pt = lightning.bolt[t2];
+								if (t2 === 0) ctxWx.moveTo(pt.x, pt.y); else ctxWx.lineTo(pt.x, pt.y);
+							}
+							ctxWx.stroke();
+							ctxWx.strokeStyle = 'rgba(255,255,255,' + lightning.flash.toFixed(3) + ')';
+							ctxWx.lineWidth = 1.6;
+							ctxWx.stroke();
+							ctxWx.globalCompositeOperation = 'source-over';
+						}
+						lightning.flash -= 0.045 * dt;
+					}
+				}
+
+				// 整体色调
+				if (W.haze > 0.2) {
+					ctxWx.fillStyle = rgba(p.haze, W.haze * 0.18);
+					ctxWx.fillRect(0, 0, vw, vh);
+				}
+			}
+
+			/* ================= 鸟群绘制 ================= */
+			function strokeFlock(ctx, color, lw, spanScale) {
+				ctx.strokeStyle = color;
+				ctx.lineWidth = lw;
+				ctx.beginPath();
+				for (var i = 0; i < birds.length; i++) {
+					var b = birds[i];
+					var cos = Math.cos(b.angle), sin = Math.sin(b.angle);
+					var rx = -sin, ry = cos;             // 局部“右”方向
+					var wing = 6.2 * b.size * spanScale * (0.82 + 0.18 * Math.cos(b.phase));
+					var sweep = Math.sin(b.phase) * 3.6 * b.size * spanScale;
+					var len = 7.6 * b.size * spanScale;
+
+					var lx = b.x + (-wing) * rx + sweep * cos;
+					var ly = b.y + (-wing) * ry + sweep * sin;
+					var rxp = b.x + wing * rx + sweep * cos;
+					var ryp = b.y + wing * ry + sweep * sin;
+
+					ctx.moveTo(lx, ly);
+					ctx.lineTo(b.x + len * cos, b.y + len * sin);
+					ctx.lineTo(rxp, ryp);
+				}
+				ctx.stroke();
+			}
+
+			function drawFlock(dt) {
+				var p = PALETTES[state.palette];
+				var W = WEATHERS[state.weather];
+				ctxFlock.setTransform(dpr, 0, 0, dpr, 0, 0);
+				ctxFlock.globalCompositeOperation = 'destination-out';
+				var fade = (!state.trails || state.paused) ? 0 : (1 - Math.pow(0.90, dt));
+				if (fade > 0) {
+					ctxFlock.fillStyle = 'rgba(0,0,0,' + fade.toFixed(4) + ')';
+					ctxFlock.fillRect(0, 0, vw, vh);
+				}
+
+				var alpha = clamp(1 - W.haze * 0.5, 0.35, 1);
+
+				if (state.glow) {
+					ctxFlock.globalCompositeOperation = 'lighter';
+					strokeFlock(ctxFlock, rgba(p.glow, 0.30 * alpha), 4.4, 1);
+				}
+				ctxFlock.globalCompositeOperation = 'source-over';
+				strokeFlock(ctxFlock, rgba(p.bird, 0.95 * alpha), 1.5, 1);
+			}
+
+			/* ================= 主循环 ================= */
+			var last = performance.now();
+			var fpsSmooth = 60, statsAcc = 0;
+
+			function updateStats() {
+				// 极化度 = |Σv| / Σ|v|，1 表示全群同向，0 表示方向完全离散
+				var sv = 0, sx = 0, sy = 0;
+				for (var i = 0; i < birds.length; i++) {
+					var b = birds[i];
+					sv += Math.hypot(b.vx, b.vy);
+					sx += b.vx; sy += b.vy;
+				}
+				var pol = sv > 0 ? Math.hypot(sx, sy) / sv : 0;
+
+				var W = WEATHERS[state.weather];
+				var gust = 1 + W.gust * (0.45 * Math.sin(state.t * 0.0013) + 0.35 * Math.sin(state.t * 0.0041 + 1.7));
+				var windNow = W.wind * state.windMul * gust;
+
+				document.getElementById('stBirds').textContent = birds.length;
+				document.getElementById('stPol').textContent = Math.round(pol * 100) + '%';
+				document.getElementById('stWind').textContent = windNow.toFixed(1);
+				document.getElementById('stFps').textContent = Math.round(fpsSmooth);
+
+				var mig = document.getElementById('migNeedle');
+				var wind = document.getElementById('windNeedle');
+				mig.setAttribute('transform', 'rotate(' + (state.migrateDir + 90).toFixed(1) + ' 40 40)');
+				wind.setAttribute('transform', 'rotate(' + (state.windDir + 90).toFixed(1) + ' 40 40)');
+			}
+
+			function frame(now) {
+				var dtRaw = (now - last) / 1000;
+				last = now;
+				if (dtRaw > 0.25) dtRaw = 0.25;
+				var dt = dtRaw * 60;
+				state.t += dtRaw * 1000;
+				fpsSmooth = fpsSmooth * 0.9 + (1 / Math.max(dtRaw, 0.0001)) * 0.1;
+
+				if (!state.paused) updateFlock(dt);
+				drawFlock(dt);
+				drawWeather(dt);
+
+				statsAcc += dtRaw;
+				if (statsAcc > 0.22) { statsAcc = 0; updateStats(); }
+
+				requestAnimationFrame(frame);
+			}
+
+			/* ================= UI ================= */
+			function applyAccent() {
+				var p = PALETTES[state.palette];
+				document.documentElement.style.setProperty('--accent', p.accent);
+			}
+
+			function fmt(v, key) {
+				if (key === 'count') return Math.round(v);
+				if (key === 'migrateDir') return Math.round(v) + '°';
+				if (key === 'vision') return Math.round(v) + 'px';
+				return Number(v).toFixed(2);
+			}
+
+			function syncUI() {
+				var els = document.querySelectorAll('[data-key]');
+				for (var i = 0; i < els.length; i++) {
+					var el = els[i], k = el.getAttribute('data-key');
+					if (el.type === 'checkbox') el.checked = !!state[k];
+					else el.value = state[k];
+				}
+				var outs = document.querySelectorAll('[data-out]');
+				for (var j = 0; j < outs.length; j++) {
+					var o = outs[j], key = o.getAttribute('data-out');
+					o.textContent = fmt(state[key], key);
+				}
+				document.getElementById('btnPause').textContent = state.paused ? '继续' : '暂停';
+				var chips = document.querySelectorAll('.chip');
+				for (var c = 0; c < chips.length; c++) {
+					chips[c].classList.toggle('on', Number(chips[c].getAttribute('data-idx')) === state.preset);
+				}
+			}
+
+			function onControlChange(key) {
+				if (key === 'palette') {
+					applyAccent();
+					drawSky();
+					ctxFlock.clearRect(0, 0, vw, vh);
+				} else if (key === 'weather') {
+					drawSky();
+					buildParticles();
+				} else if (key === 'count') {
+					setCount(state.count);
+				} else if (key === 'vision') {
+					buildGrid();
+				}
+				syncUI();
+			}
+
+			function applyPreset(idx) {
+				var pr = PRESETS[idx];
+				if (!pr) return;
+				state.preset = idx;
+				state.palette = pr.palette;
+				state.weather = pr.weather;
+				state.count = pr.count;
+				state.migrateDir = pr.migrateDir;
+				state.windMul = pr.windMul;
+				state.speedMul = pr.speedMul;
+				state.vision = pr.vision;
+				state.cohesion = pr.cohesion;
+				state.alignment = pr.alignment;
+				state.separation = pr.separation;
+				applyAccent();
+				drawSky();
+				buildParticles();
+				resetFlock();
+				buildGrid();
+				syncUI();
+			}
+
+			function buildUI() {
+				var pal = document.getElementById('paletteSel');
+				Object.keys(PALETTES).forEach(function (k) {
+					var op = document.createElement('option');
+					op.value = k; op.textContent = PALETTES[k].name;
+					pal.appendChild(op);
+				});
+				var wea = document.getElementById('weatherSel');
+				Object.keys(WEATHERS).forEach(function (k) {
+					var op = document.createElement('option');
+					op.value = k; op.textContent = WEATHERS[k].name;
+					wea.appendChild(op);
+				});
+
+				var chips = document.getElementById('presetChips');
+				PRESETS.forEach(function (pr, i) {
+					var el = document.createElement('div');
+					el.className = 'chip';
+					el.setAttribute('data-idx', i);
+					el.textContent = pr.name;
+					el.addEventListener('click', function () { applyPreset(i); });
+					chips.appendChild(el);
+				});
+
+				var els = document.querySelectorAll('[data-key]');
+				for (var i = 0; i < els.length; i++) {
+					(function (el) {
+						var k = el.getAttribute('data-key');
+						var ev = (el.tagName === 'SELECT' || el.type === 'checkbox') ? 'change' : 'input';
+						el.addEventListener(ev, function () {
+							if (el.type === 'checkbox') state[k] = el.checked;
+							else if (el.type === 'range' || el.type === 'number') state[k] = Number(el.value);
+							else state[k] = el.value;
+							state.preset = -1;
+							onControlChange(k);
+						});
+					})(els[i]);
+				}
+
+				document.getElementById('btnPause').addEventListener('click', togglePause);
+				document.getElementById('btnReset').addEventListener('click', function () { resetFlock(); });
+				document.getElementById('btnFull').addEventListener('click', function () {
+					if (document.fullscreenElement) document.exitFullscreen();
+					else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+				});
+				document.getElementById('btnRandom').addEventListener('click', randomScene);
+
+				document.getElementById('closePanel').addEventListener('click', function () {
+					document.body.classList.add('panel-hidden');
+				});
+				document.getElementById('panelToggle').addEventListener('click', function () {
+					document.body.classList.remove('panel-hidden');
+				});
+			}
+
+			function togglePause() {
+				state.paused = !state.paused;
+				syncUI();
+			}
+
+			function randomScene() {
+				var pk = Object.keys(PALETTES);
+				var wk = Object.keys(WEATHERS);
+				state.palette = pk[Math.floor(Math.random() * pk.length)];
+				state.weather = wk[Math.floor(Math.random() * wk.length)];
+				state.migrateDir = Math.round(rand(0, 359));
+				state.windMul = rand(0.3, 1.6);
+				state.speedMul = rand(0.9, 1.35);
+				state.count = Math.round(rand(120, 420));
+				state.preset = -1;
+				applyAccent();
+				drawSky();
+				buildParticles();
+				resetFlock();
+				buildGrid();
+				syncUI();
+			}
+
+			/* ================= 交互 ================= */
+			function bindPointer() {
+				window.addEventListener('pointermove', function (e) {
+					pointer.x = e.clientX;
+					pointer.y = e.clientY;
+					pointer.active = true;
+				}, { passive: true });
+				window.addEventListener('pointerdown', function (e) {
+					pointer.x = e.clientX;
+					pointer.y = e.clientY;
+					pointer.active = true;
+					pointer.burst = 1;
+				}, { passive: true });
+				window.addEventListener('pointerleave', function () { pointer.active = false; });
+				window.addEventListener('blur', function () { pointer.active = false; });
+			}
+
+			window.addEventListener('keydown', function (e) {
+				if (e.code === 'Space') { e.preventDefault(); togglePause(); }
+				else if (e.key === 'r' || e.key === 'R') resetFlock();
+				else if (e.key === 'h' || e.key === 'H') document.body.classList.toggle('panel-hidden');
+				else if (e.key === 'f' || e.key === 'F') {
+					if (document.fullscreenElement) document.exitFullscreen();
+					else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+				}
+			});
+
+			var resizeTimer = null;
+			window.addEventListener('resize', function () {
+				if (resizeTimer) cancelAnimationFrame(resizeTimer);
+				resizeTimer = requestAnimationFrame(resize);
+			});
+
+			/* ================= 启动 ================= */
+			buildUI();
+			resize();          // 先确定画布尺寸，鸟群才会在可视区域内生成
+			applyPreset(0);
+			bindPointer();
+			requestAnimationFrame(frame);
+		})();
+	</script>
+</body>
+
+</html>
